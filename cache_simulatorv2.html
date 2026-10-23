@@ -1,0 +1,1537 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>351 Cache Simulator</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0fdf4',
+                            100: '#dcfce7',
+                            500: '#22c55e',
+                            600: '#16a34a',
+                            700: '#15803d',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Inter & JetBrains Mono Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: rgba(0,0,0,0.05);
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(0,0,0,0.2);
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: rgba(0,0,0,0.4);
+        }
+        .highlight-set {
+            background: rgba(249, 115, 22, 0.15);
+            border-left: 3px solid #f97316;
+        }
+        .highlight-line {
+            background: rgba(220, 38, 38, 0.15);
+            border-left: 3px solid #dc2626;
+        }
+        .highlight-bit-v,
+        .highlight-bit-d {
+            background: rgba(220, 38, 38, 0.25);
+            font-weight: bold;
+        }
+        .highlight-byte {
+            background: rgba(16, 185, 129, 0.25);
+            border: 1px solid #10b981;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 dark:bg-slate-950 dark:text-slate-100 h-full flex flex-col selection:bg-emerald-500 selection:text-white">
+
+    <!-- Header -->
+    <header class="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-6 py-4 flex items-center justify-between shadow-xs shrink-0">
+        <div class="flex items-center space-x-3">
+            <h1 class="text-2xl font-bold tracking-tight text-slate-900 dark:text-white font-mono">351 Cache Simulator</h1>
+        </div>
+        <div class="flex items-center space-x-3">
+            <button onclick="toggleDarkMode()" class="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition" title="Cambiar Tema">
+                <i class="fa-solid fa-moon dark:hidden"></i>
+                <i class="fa-solid fa-sun hidden dark:inline"></i>
+            </button>
+            <button onclick="openGuide()" class="flex items-center space-x-2 px-3.5 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/60 font-medium text-sm hover:bg-emerald-100 transition">
+                <i class="fa-solid fa-circle-question"></i>
+                <span>Guía</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="flex-1 overflow-y-auto p-4 md:p-6 grid grid-cols-1 xl:grid-cols-12 gap-6 max-w-[1700px] w-full mx-auto">
+        
+        <!-- Top / Left Area: Parameters, Manual Access & History -->
+        <div class="xl:col-span-12 grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            <!-- System Parameters -->
+            <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs flex flex-col justify-between">
+                <div>
+                    <h2 class="font-bold text-base pb-2 mb-3 border-b border-slate-100 dark:border-slate-800 text-slate-900 dark:text-white">System Parameters:</h2>
+                    <div class="space-y-3 text-sm">
+                        <div class="flex items-center justify-between">
+                            <span class="text-slate-600 dark:text-slate-400">Address width:</span>
+                            <div class="flex items-center space-x-2">
+                                <select id="addrWidth" class="bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2 py-1 text-sm font-mono">
+                                    <option value="4">4</option>
+                                    <option value="6">6</option>
+                                    <option value="8" selected>8</option>
+                                    <option value="10">10</option>
+                                    <option value="12">12</option>
+                                </select>
+                                <span>bits</span>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center justify-between">
+                            <span class="text-slate-600 dark:text-slate-400">Cache size:</span>
+                            <div class="flex items-center space-x-2">
+                                <select id="cacheSize" class="bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2 py-1 text-sm font-mono">
+                                    <option value="8">8</option>
+                                    <option value="16">16</option>
+                                    <option value="32" selected>32</option>
+                                    <option value="64">64</option>
+                                    <option value="128">128</option>
+                                    <option value="256">256</option>
+                                </select>
+                                <span>bytes</span>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center justify-between">
+                            <span class="text-slate-600 dark:text-slate-400">Block size:</span>
+                            <div class="flex items-center space-x-3 text-xs" id="blockSizeGroup">
+                                <label><input type="radio" name="blockSize" value="2"> 2</label>
+                                <label><input type="radio" name="blockSize" value="4"> 4</label>
+                                <label><input type="radio" name="blockSize" value="8" checked> 8 bytes</label>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center justify-between">
+                            <span class="text-slate-600 dark:text-slate-400">Associativity:</span>
+                            <div class="flex items-center space-x-2 text-xs" id="assocGroup">
+                                <label><input type="radio" name="associativity" value="1" checked> 1</label>
+                                <label><input type="radio" name="associativity" value="2"> 2</label>
+                                <label><input type="radio" name="associativity" value="4"> 4 way(s)</label>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center justify-between">
+                            <span class="text-slate-600 dark:text-slate-400">Write Hit:</span>
+                            <select id="writeHit" class="bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2 py-1 text-xs">
+                                <option value="write-back" selected>Write back</option>
+                                <option value="write-through">Write through</option>
+                            </select>
+                        </div>
+
+                        <div class="flex items-center justify-between">
+                            <span class="text-slate-600 dark:text-slate-400">Write Miss:</span>
+                            <select id="writeMiss" class="bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2 py-1 text-xs">
+                                <option value="write-allocate" selected>Write-allocate</option>
+                                <option value="no-write-allocate">No-write-allocate</option>
+                            </select>
+                        </div>
+
+                        <div class="flex items-center justify-between">
+                            <span class="text-slate-600 dark:text-slate-400">Replacement:</span>
+                            <select id="replacement" class="bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2 py-1 text-xs">
+                                <option value="lru" selected>Least Recently Used</option>
+                                <option value="fifo">FIFO</option>
+                                <option value="random">Random</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                    <button id="actionBtn" onclick="onSystemAction()" class="bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-400 px-4 py-1.5 rounded text-xs font-semibold shadow-xs transition">
+                        Generate System
+                    </button>
+                    <label class="flex items-center space-x-1.5 text-xs cursor-pointer">
+                        <input type="checkbox" id="explainCheck" class="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500">
+                        <span class="font-medium">Explain</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Manual Memory Access & Simulation Messages -->
+            <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs flex flex-col justify-between space-y-4">
+                <div>
+                    <h2 class="font-bold text-base pb-2 mb-3 border-b border-slate-100 dark:border-slate-800 text-slate-900 dark:text-white">Manual Memory Access:</h2>
+                    
+                    <div class="space-y-3 text-xs">
+                        <div class="flex items-center space-x-2">
+                            <button onclick="handleRead()" class="bg-slate-200 dark:bg-slate-800 border border-slate-400 px-3 py-1 rounded text-xs font-medium hover:bg-slate-300 transition">Read</button>
+                            <span class="font-medium">Addr: 0x</span>
+                            <input type="text" id="readAddr" value="" placeholder="00" maxlength="4" class="w-16 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded px-1.5 py-1 font-mono text-center">
+                        </div>
+
+                        <div class="flex items-center space-x-2 flex-wrap gap-y-2">
+                            <button onclick="handleWrite()" class="bg-slate-200 dark:bg-slate-800 border border-slate-400 px-3 py-1 rounded text-xs font-medium hover:bg-slate-300 transition">Write</button>
+                            <span class="font-medium">Addr: 0x</span>
+                            <input type="text" id="writeAddr" value="" placeholder="00" maxlength="4" class="w-14 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded px-1.5 py-1 font-mono text-center">
+                            <span class="font-medium">, Byte: 0x</span>
+                            <input type="text" id="writeByte" value="" placeholder="00" maxlength="2" class="w-14 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded px-1.5 py-1 font-mono text-center">
+                        </div>
+
+                        <div>
+                            <button onclick="handleFlush()" class="bg-slate-200 dark:bg-slate-800 border border-slate-400 px-3 py-1 rounded text-xs font-medium hover:bg-slate-300 transition">Flush</button>
+                            <label class="flex items-center space-x-1.5 text-xs cursor-pointer ml-2">
+                                <input type="checkbox" id="explainOpCheck" class="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500">
+                                <span class="font-medium">Explain</span>
+                            </label>
+                            <button onclick="nextExplainStep()" id="nextExplainBtn" class="bg-emerald-200 dark:bg-emerald-900 border border-emerald-400 px-3 py-1 rounded text-xs font-medium hover:bg-emerald-300 dark:hover:bg-emerald-800 transition" style="display: none">Next</button>
+                        </div>
+
+                        <!-- Address breakdown headers -->
+                        <div class="grid grid-cols-5 text-center font-semibold pt-2">
+                            <div class="bg-emerald-300 dark:bg-emerald-900 border border-slate-400 py-1">Tag</div>
+                            <div class="bg-emerald-300 dark:bg-emerald-900 border border-l-0 border-slate-400 py-1">Index</div>
+                            <div class="bg-emerald-300 dark:bg-emerald-900 border border-l-0 border-slate-400 py-1">Offset</div>
+                            <div class="bg-sky-200 dark:bg-sky-900 border border-l-0 border-slate-400 py-1">Cache Hits</div>
+                            <div class="bg-sky-200 dark:bg-sky-900 border border-l-0 border-slate-400 py-1">Cache Misses</div>
+                        </div>
+                        <div class="grid grid-cols-5 text-center font-mono font-medium">
+                            <div id="resTag" class="bg-emerald-100 dark:bg-emerald-950 border border-slate-400 py-1.5">-</div>
+                            <div id="resIndex" class="bg-emerald-100 dark:bg-emerald-950 border border-l-0 border-slate-400 py-1.5">-</div>
+                            <div id="resOffset" class="bg-emerald-100 dark:bg-emerald-950 border border-l-0 border-slate-400 py-1.5">-</div>
+                            <div id="statHits" class="bg-sky-50 dark:bg-sky-950 border border-l-0 border-slate-400 py-1.5">-</div>
+                            <div id="statMisses" class="bg-sky-50 dark:bg-sky-950 border border-l-0 border-slate-400 py-1.5">-</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Simulation Messages Box -->
+                <div>
+                    <h3 class="font-bold text-xs uppercase text-slate-500 mb-1">Simulation Messages:</h3>
+                    <div id="simulationConsole" class="bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded p-2.5 text-xs font-mono min-h-[50px] max-h-[90px] overflow-y-auto">
+                        Press Next (left) to advance explanation.
+                    </div>
+                </div>
+            </div>
+
+            <!-- History Section -->
+            <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs flex flex-col justify-between">
+                <div>
+                    <h2 class="font-bold text-base pb-2 mb-3 border-b border-slate-100 dark:border-slate-800 text-slate-900 dark:text-white">History:</h2>
+                    <textarea id="historyText" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded p-2 text-xs font-mono h-32 outline-none resize-none">> </textarea>
+                </div>
+                <div class="flex items-center space-x-2 pt-2">
+                    <button onclick="loadHistory()" class="bg-slate-200 dark:bg-slate-800 border border-slate-400 px-3 py-1 rounded text-xs">Load</button>
+                    <button onclick="navPrev()" class="bg-slate-200 dark:bg-slate-800 border border-slate-400 px-2.5 py-1 rounded text-xs"><i class="fa-solid fa-arrow-up"></i></button>
+                    <button onclick="navNext()" class="bg-slate-200 dark:bg-slate-800 border border-slate-400 px-2.5 py-1 rounded text-xs"><i class="fa-solid fa-arrow-down"></i></button>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Bottom Area: Explanations + Cache State + Physical Memory -->
+        <div class="xl:col-span-12 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            
+            <!-- Left Step Explanation Panel (Dynamic) -->
+            <div id="explanationPanel" class="lg:col-span-4 bg-transparent p-2 text-sm space-y-3 font-mono font-medium">
+                <!-- Se llena dinámicamente según el paso de explicación -->
+                <div class="text-slate-400 italic font-sans">Haz clic en "Generate System" para iniciar la simulación explicada.</div>
+            </div>
+
+            <!-- Middle/Right: Cache Table & Physical Memory -->
+            <div class="lg:col-span-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+                
+                <!-- Cache Display -->
+                <div class="bg-slate-200/70 dark:bg-slate-900/80 border-2 border-amber-800/40 rounded-xl p-4 shadow-sm">
+                    <div class="flex items-center justify-between mb-2">
+                        <div class="text-amber-900 dark:text-amber-500 font-bold font-mono text-sm tracking-wider flex items-center space-x-2">
+                            <span>V</span>
+                            <span>D</span>
+                            <span>T</span>
+                            <span class="pl-2">Cache Data</span>
+                        </div>
+                    </div>
+                    <div id="cacheContainer" class="space-y-2 font-mono text-xs">
+                        <div class="text-slate-500 italic">Caché no generada.</div>
+                    </div>
+                </div>
+
+                <!-- Physical Memory Display -->
+                <div class="bg-slate-200/70 dark:bg-slate-900/80 border-2 border-emerald-800/40 rounded-xl p-4 shadow-sm">
+                    <div class="text-emerald-800 dark:text-emerald-400 font-bold font-mono text-sm tracking-wider text-center mb-3">
+                        Physical Memory
+                    </div>
+                    <div id="physicalMemoryContainer" class="space-y-1 font-mono text-xs max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
+                        <!-- Se llena con RAM simulada -->
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+
+    </main>
+
+    <!-- Guide Modal -->
+    <div id="guideModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                <h3 class="font-bold text-lg text-slate-900 dark:text-white">Guía del Simulador CSE 351</h3>
+                <button onclick="closeGuide()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="text-sm text-slate-600 dark:text-slate-300 space-y-2">
+                <p>Este simulador replica fielmente la interfaz pedagógica del curso CSE 351 de la Universidad de Washington.</p>
+                <p>Al marcar <strong>Explain</strong> y presionar <strong>Generate System</strong> / <strong>Next</strong>, podrás recorrer paso a paso la estructura de bits, fórmulas y asignación de memoria.</p>
+            </div>
+            <div class="flex justify-end pt-2">
+                <button onclick="closeGuide()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-sm">Entendido</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Script principal de simulación y pasos exactos CSE 351 -->
+    <script>
+        let state = {
+            initialized: false,
+            addrWidth: 8,
+            cacheSize: 32,
+            blockSize: 8,
+            associativity: 1,
+            writeHit: 'write-back',
+            writeMiss: 'write-allocate',
+            replacement: 'lru',
+            numSets: 4,
+            linesPerSet: 1,
+            bitsOffset: 3,
+            bitsIndex: 2,
+            bitsTag: 3,
+            hits: 0,
+            misses: 0,
+            compulsoryMisses: 0,
+            conflictMisses: 0,
+            memoryReads: 0,
+            memoryWrites: 0,
+            ram: {},
+            cache: [],
+            fifoQueues: [],
+            loadedBlocks: new Set(),
+            accessHistory: [],
+            timestamp: 0,
+            explainStep: 0,
+            explainMode: false,
+            explainOpStep: 0,
+            explainOpType: null,
+            explainOpAddr: null,
+            explainOpByte: null
+        };
+
+        const presetBytes = [
+            0x20, 0xf6, 0xef, 0xea, 0xa2, 0x5e, 0x9f, 0x1a,
+            0xa2, 0xd0, 0x4f, 0xc4, 0xa0, 0x0c, 0xf7, 0x27,
+            0xb8, 0xbd, 0x1a, 0xca, 0x35, 0x95, 0xcb, 0x80,
+            0x84, 0x3f, 0x02, 0x4f, 0x8e, 0xf3, 0xf6, 0xe5,
+            0xcd, 0x4a, 0xf6, 0x48, 0x1a, 0x6f, 0x7e, 0x63,
+            0xe9, 0x36, 0xae, 0x32, 0x0d, 0x37, 0xbc, 0xc9,
+            0x93, 0xdc, 0xb8, 0x7a, 0x3b, 0x1a, 0xb2, 0x0c,
+            0xd3, 0xa6, 0xa4, 0x71, 0xe2, 0x23, 0x9c, 0x59,
+            0x60, 0x15, 0x68, 0x76, 0xd3, 0xe6, 0x25, 0xbe,
+            0xa4, 0xa5, 0xdb, 0xbe, 0x56, 0xaf, 0xd1, 0x2e,
+            0x17, 0x1f, 0x95, 0xc4, 0x24, 0x63, 0xd2, 0x62,
+            0xb1, 0x7a, 0x44, 0x58, 0xc7, 0xc4, 0x03, 0x81,
+            0x54, 0x84, 0x69, 0x8c, 0xab, 0xcc, 0x1f, 0xd9,
+            0xf5, 0x42, 0x10, 0x82, 0x77, 0x31, 0x90, 0x22,
+            0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88,
+            0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x00
+        ];
+
+        function toggleDarkMode() {
+            document.documentElement.classList.toggle('dark');
+        }
+
+        function openGuide() {
+            document.getElementById('guideModal').classList.remove('hidden');
+        }
+
+        function closeGuide() {
+            document.getElementById('guideModal').classList.add('hidden');
+        }
+
+        function readParameters() {
+            state.addrWidth = parseInt(document.getElementById('addrWidth').value);
+            state.cacheSize = parseInt(document.getElementById('cacheSize').value);
+            
+            const bBlock = document.querySelector('input[name="blockSize"]:checked');
+            state.blockSize = bBlock ? parseInt(bBlock.value) : 8;
+
+            const bAssoc = document.querySelector('input[name="associativity"]:checked');
+            state.associativity = bAssoc ? parseInt(bAssoc.value) : 1;
+
+            state.writeHit = document.getElementById('writeHit').value;
+            state.writeMiss = document.getElementById('writeMiss').value;
+            state.replacement = document.getElementById('replacement').value;
+
+            const totalBlocks = state.cacheSize / state.blockSize;
+            state.numSets = totalBlocks / state.associativity;
+            state.linesPerSet = state.associativity;
+
+            state.bitsOffset = Math.log2(state.blockSize);
+            state.bitsIndex = Math.log2(state.numSets);
+            state.bitsTag = state.addrWidth - state.bitsOffset - state.bitsIndex;
+        }
+
+        function initRAM() {
+            state.ram = {};
+            const ramSize = Math.pow(2, state.addrWidth);
+            // Deterministic seed 'cse351'
+            let seed = 0;
+            const seedStr = 'cse351';
+            for (let i = 0; i < seedStr.length; i++) {
+                seed = ((seed * 131542391) ^ seedStr.charCodeAt(i)) >>> 0;
+            }
+            function prng() {
+                seed = (seed * 1664525 + 1013904223) >>> 0;
+                return seed;
+            }
+            for (let i = 0; i < ramSize; i++) {
+                state.ram[i] = prng() % 256;
+            }
+        }
+
+        function initCache() {
+            state.cache = [];
+            state.fifoQueues = [];
+            state.loadedBlocks = new Set();
+            for (let s = 0; s < state.numSets; s++) {
+                let setLines = [];
+                for (let l = 0; l < state.linesPerSet; l++) {
+                    setLines.push({
+                        valid: false,
+                        dirty: false,
+                        tag: null,
+                        data: new Array(state.blockSize).fill(0),
+                        lruCounter: 0,
+                        fifoOrder: 0
+                    });
+                }
+                state.cache.push(setLines);
+                state.fifoQueues.push([]);
+            }
+        }
+
+        function onSystemAction() {
+            readParameters();
+            initRAM();
+            initCache();
+            state.hits = 0;
+            state.misses = 0;
+            state.compulsoryMisses = 0;
+            state.conflictMisses = 0;
+            state.memoryReads = 0;
+            state.memoryWrites = 0;
+            state.timestamp = 0;
+            state.initialized = true;
+
+            const explainChecked = document.getElementById('explainCheck').checked;
+            if (explainChecked) {
+                state.explainStep = 1;
+                document.getElementById('actionBtn').innerText = 'Next';
+                renderExplanationStep();
+            } else {
+                state.explainStep = 0;
+                document.getElementById('actionBtn').innerText = 'Reset System';
+                document.getElementById('explanationPanel').innerHTML = '';
+                document.getElementById('simulationConsole').innerText = 'System Generated and Reset';
+            }
+
+            renderCache();
+            renderPhysicalMemory();
+            updateStatsDisplay(null, null, null);
+        }
+
+        function renderExplanationStep() {
+            const panel = document.getElementById('explanationPanel');
+            const consoleEl = document.getElementById('simulationConsole');
+
+            if (state.explainStep === 1) {
+                consoleEl.innerText = 'Press Next (left) to advance explanation.';
+                panel.innerHTML = `
+                    <div class="space-y-1 text-slate-800 dark:text-slate-200">
+                        <div>m = ${state.addrWidth}, C = ${state.cacheSize}</div>
+                        <div>K = ${state.blockSize}, E = ${state.associativity}</div>
+                        <div>${state.writeHit}</div>
+                        <div>${state.writeMiss}</div>
+                        <div>Eviction: ${state.replacement.toUpperCase()}</div>
+                    </div>
+                `;
+            } else if (state.explainStep === 2) {
+                panel.innerHTML = `
+                    <div class="space-y-2 text-slate-800 dark:text-slate-200">
+                        <div>Block size<br>= ${state.blockSize} bytes</div>
+                        <div>Cache size<br>= ${state.cacheSize} bytes</div>
+                        <div class="pt-2">So ${state.cacheSize/state.blockSize} lines<br>in ${state.numSets} sets<br>(each set holds<br>${state.linesPerSet} lines)</div>
+                        <div class="pt-2">Management bits:</div>
+                        <div class="pl-2 space-y-1 text-xs">
+                            <div>- Valid bit</div>
+                            <div>- Dirty bit</div>
+                            <div>- Tag bit(s)</div>
+                        </div>
+                    </div>
+                `;
+            } else if (state.explainStep === 3) {
+                panel.innerHTML = `
+                    <div class="space-y-2 text-slate-800 dark:text-slate-200">
+                        <div class="text-amber-700 dark:text-amber-400 font-bold">*Cache Access*</div>
+                        <div>Offset width:<br>= log_2(K)<br>= ${state.bitsOffset} bits</div>
+                        <div>Index width:<br>= log_2(C/K/E)<br>= ${state.bitsIndex} bits</div>
+                        <div>Tag width:<br>= m-s-k<br>= ${state.bitsTag} bits</div>
+                    </div>
+                `;
+            } else {
+                // Finalizado pasos guiados, vuelve a modo normal con botón Reset System
+                state.explainStep = 0;
+                document.getElementById('actionBtn').innerText = 'Reset System';
+                panel.innerHTML = `<div class="text-emerald-600 font-sans font-medium">Explicación inicial completa. ¡Simulador listo para accesos!</div>`;
+                consoleEl.innerText = 'System Generated and Reset';
+            }
+        }
+
+        // =====================================================================
+        // EXPLAIN MODE - Funciones de explicación interactiva por operación
+        // =====================================================================
+
+        function lockAccessInputs(lock) {
+            const readAddr = document.getElementById('readAddr');
+            const writeAddr = document.getElementById('writeAddr');
+            const writeByte = document.getElementById('writeByte');
+            const explainBtn = document.getElementById('nextExplainBtn');
+            if (lock) {
+                readAddr.disabled = true;
+                writeAddr.disabled = true;
+                writeByte.disabled = true;
+                explainBtn.disabled = true;
+            } else {
+                readAddr.disabled = false;
+                writeAddr.disabled = false;
+                writeByte.disabled = false;
+                explainBtn.disabled = false;
+            }
+        }
+
+        function clearHighlights() {
+            document.querySelectorAll('.highlight-set, .highlight-line, .highlight-bit-v, .highlight-bit-d, .highlight-byte').forEach(el => {
+                el.classList.remove('highlight-set', 'highlight-line', 'highlight-bit-v', 'highlight-bit-d', 'highlight-byte');
+            });
+        }
+
+        function highlightSet(index) {
+            clearHighlights();
+            const container = document.getElementById('cacheContainer');
+            if (!container) return;
+            const setEls = container.querySelectorAll('div.flex.items-center.space-x-2.py-1');
+            const setEl = setEls[index];
+            if (setEl) setEl.classList.add('highlight-set');
+        }
+
+        function highlightLine(setIdx, lineIdx) {
+            clearHighlights();
+            const container = document.getElementById('cacheContainer');
+            if (!container) return;
+            const setEls = container.querySelectorAll('div.flex.items-center.space-x-2.py-1');
+            let count = 0;
+            for (let s = 0; s < setEls.length; s++) {
+                for (let l = 0; l < state.linesPerSet; l++) {
+                    if (s === setIdx && l === lineIdx) {
+                        setEls[count].classList.add('highlight-line');
+                        return;
+                    }
+                    count++;
+                }
+            }
+        }
+
+        function highlightBit(type, setIdx, lineIdx) {
+            clearHighlights();
+            const container = document.getElementById('cacheContainer');
+            if (!container) return;
+            const setEls = container.querySelectorAll('div.flex.items-center.space-x-2.py-1');
+            let count = 0;
+            let targetEl = null;
+            for (let s = 0; s < setEls.length; s++) {
+                for (let l = 0; l < state.linesPerSet; l++) {
+                    if (s === setIdx && l === lineIdx) {
+                        targetEl = setEls[count];
+                        break;
+                    }
+                    count++;
+                }
+                if (targetEl) break;
+            }
+            if (!targetEl) return;
+            const spans = targetEl.querySelectorAll('span.bg-slate-300.dark\\:bg-slate-800.px-1.5.py-0.5.rounded.text-center');
+            if (type === 'v' && spans[0]) spans[0].classList.add('highlight-bit-v');
+            if (type === 'd' && spans[1]) spans[1].classList.add('highlight-bit-d');
+        }
+
+        function highlightByte(setIdx, lineIdx, offset) {
+            clearHighlights();
+            const container = document.getElementById('cacheContainer');
+            if (!container) return;
+            const setEls = container.querySelectorAll('div.flex.items-center.space-x-2.py-1');
+            let count = 0;
+            let targetEl = null;
+            for (let s = 0; s < setEls.length; s++) {
+                for (let l = 0; l < state.linesPerSet; l++) {
+                    if (s === setIdx && l === lineIdx) {
+                        targetEl = setEls[count];
+                        break;
+                    }
+                    count++;
+                }
+                if (targetEl) break;
+            }
+            if (!targetEl) return;
+            const byteSpans = targetEl.querySelectorAll('span.bg-white.dark\\:bg-slate-800.px-1.py-0.5.rounded.border.border-slate-300.dark\\:border-slate-700');
+            if (byteSpans[offset]) byteSpans[offset].classList.add('highlight-byte');
+        }
+
+        function startExplain(opType) {
+            if (!state.initialized) {
+                onSystemAction();
+            }
+
+            let addrInput, byteInput;
+            if (opType === 'read') {
+                addrInput = document.getElementById('readAddr');
+            } else {
+                addrInput = document.getElementById('writeAddr');
+                byteInput = document.getElementById('writeByte');
+            }
+
+            const addr = parseAddress(addrInput.value);
+            if (addr === null) {
+                alert("Dirección de memoria inválida.");
+                return;
+            }
+
+            let byteVal = null;
+            if (byteInput) {
+                byteVal = parseInt(byteInput.value, 16);
+                if (isNaN(byteVal)) {
+                    alert("Valor de byte inválido.");
+                    return;
+                }
+            }
+
+            const { tag, index, offset } = decomposeAddress(addr);
+            const setLines = state.cache[index];
+            let hitLine = null;
+            for (let line of setLines) {
+                if (line.valid && line.tag === tag) {
+                    hitLine = line;
+                    break;
+                }
+            }
+
+            const missType = hitLine ? 'hit' : 'miss';
+            let explainOpType;
+            if (opType === 'read') {
+                explainOpType = missType === 'hit' ? 'read-hit' : 'read-miss';
+            } else {
+                if (state.writeMiss === 'no-write-allocate' && missType === 'miss') {
+                    explainOpType = 'write-miss-nwa';
+                } else {
+                    explainOpType = missType === 'hit' ? 'write-hit' : 'write-miss';
+                }
+            }
+
+            state.explainMode = true;
+            state.explainOpStep = 1;
+            state.explainOpType = explainOpType;
+            state.explainOpAddr = addr;
+            state.explainOpByte = byteVal;
+
+            lockAccessInputs(true);
+            document.getElementById('nextExplainBtn').style.display = 'inline-block';
+
+            renderExplainStep();
+        }
+
+        function endExplain() {
+            state.explainMode = false;
+            state.explainOpStep = 0;
+            state.explainOpType = null;
+            state.explainOpAddr = null;
+            state.explainOpByte = null;
+
+            lockAccessInputs(false);
+            clearHighlights();
+            document.getElementById('nextExplainBtn').style.display = 'none';
+
+            renderCache();
+            updateStatsDisplay(null, null, null);
+            document.getElementById('simulationConsole').innerText = 'Explicación completada.';
+        }
+
+        function renderExplainStep() {
+            const panel = document.getElementById('explanationPanel');
+            const consoleEl = document.getElementById('simulationConsole');
+            const addr = state.explainOpAddr;
+            const byteVal = state.explainOpByte;
+            const { tag, index, offset } = decomposeAddress(addr);
+            const setLines = state.cache[index];
+            const blockStartAddr = addr - offset;
+
+            let hitLine = null;
+            let hitLineIdx = -1;
+            for (let l = 0; l < setLines.length; l++) {
+                if (setLines[l].valid && setLines[l].tag === tag) {
+                    hitLine = setLines[l];
+                    hitLineIdx = l;
+                    break;
+                }
+            }
+
+            const step = state.explainOpStep;
+            const type = state.explainOpType;
+
+            const addrStr = '0x' + addr.toString(16).toUpperCase();
+            const tagStr = '0x' + tag.toString(16).toUpperCase();
+            const indexStr = index.toString();
+            const offsetStr = offset.toString();
+            const byteStr = byteVal !== null ? '0x' + byteVal.toString(16).toUpperCase().padStart(2, '0') : '';
+
+            // Actualizar el cuadro TIO existente en Manual Memory Access
+            updateStatsDisplay(tag, index, offset);
+
+            if (type === 'read-miss') {
+                if (step === 1) {
+                    consoleEl.innerText = `Read: ${addrStr}`;
+                    panel.innerHTML = `
+                        <div class="space-y-1 text-slate-800 dark:text-slate-200">
+                            <div></div>
+                            <div class="pt-2 text-sm">Historia: &gt; R(${addrStr}) = ?</div>
+                        </div>
+                    `;
+                    document.getElementById('historyText').value = (document.getElementById('historyText').value || '') + `\n> R(${addrStr}) = ?`;
+                } else if (step === 2) {
+                    consoleEl.innerText = `Read: ${addrStr}\nSplit address into TIO breakdown.`;
+                    panel.innerHTML = `
+                        <div class="space-y-1 text-slate-800 dark:text-slate-200">
+                            <div></div>
+                            <div class="pt-2 text-sm">Historia: &gt; R(${addrStr}) = ?</div>
+                        </div>
+                    `;
+                } else if (step === 3) {
+                    consoleEl.innerText = `Read: ${addrStr}\nSplit address into TIO breakdown.\nChecking Set ${index}`;
+                    highlightSet(index);
+                    panel.innerHTML = `
+                        <div class="space-y-1 text-slate-800 dark:text-slate-200">
+                            <div></div>
+                            <div class="pt-2 text-sm">Historia: &gt; R(${addrStr}) = ?</div>
+                        </div>
+                    `;
+                } else if (step === 4) {
+                    state.misses++;
+                    document.getElementById('historyText').value = (document.getElementById('historyText').value || '').replace(/> R\(.*\) = \?/g, `> R(${addrStr}) = M`);
+                    consoleEl.innerText = `Read: ${addrStr}\nSplit address into TIO breakdown.\nChecking Set ${index}\nLooking for Tag ${tag}... MISS!`;
+                    panel.innerHTML = `
+                        <div class="space-y-1 text-slate-800 dark:text-slate-200">
+                            <div></div>
+                            <div class="pt-2 text-sm">Historia: &gt; R(${addrStr}) = M</div>
+                            <div class="pt-2 text-red-600 dark:text-red-400">Tipo: Miss</div>
+                        </div>
+                    `;
+                    updateStatsDisplay(tag, index, offset);
+                } else if (step === 5) {
+                    const { line: targetLine, wasInvalid } = getReplacementLine(setLines, index);
+                    const lineIdx = setLines.indexOf(targetLine);
+                    consoleEl.innerText = `Read: ${addrStr}\nSplit address into TIO breakdown.\nChecking Set ${index}\nLooking for Tag ${tag}... MISS!\nInvalid Line ${lineIdx} chosen for replacement.`;
+                    highlightBit('v', index, lineIdx);
+                    panel.innerHTML = `
+                        <div class="space-y-1 text-slate-800 dark:text-slate-200">
+                            <div></div>
+                            <div class="pt-2 text-sm">Historia: &gt; R(${addrStr}) = M</div>
+                        </div>
+                    `;
+                } else if (step === 6) {
+                    const { line: targetLine, wasInvalid } = getReplacementLine(setLines, index);
+                    const lineIdx = setLines.indexOf(targetLine);
+                    const baseAddr = blockStartAddr;
+                    // Write-back si la línea es dirty
+                    if (!wasInvalid && targetLine.dirty) {
+                        writeBackLine(targetLine, index);
+                    }
+                    // Cargar bloque desde RAM
+                    let blockData = [];
+                    for (let i = 0; i < state.blockSize; i++) {
+                        blockData.push(state.ram[baseAddr + i] || 0);
+                    }
+                    targetLine.valid = true;
+                    targetLine.dirty = false;
+                    targetLine.tag = tag;
+                    targetLine.data = blockData;
+                    targetLine.lruCounter = state.timestamp++;
+                    targetLine.fifoOrder = state.timestamp++;
+                    targetLine.timestamp = Date.now();
+                    state.memoryReads++;
+                    consoleEl.innerText = `Read: ${addrStr}\nSplit address into TIO breakdown.\nChecking Set ${index}\nLooking for Tag ${tag}... MISS!\nInvalid Line ${lineIdx} chosen for replacement.\nBlock read into cache from memory at address 0x${baseAddr.toString(16).toUpperCase()}.`;
+                    panel.innerHTML = `
+                        <div class="space-y-1 text-slate-800 dark:text-slate-200">
+                            <div></div>
+                            <div class="pt-2 text-sm">Historia: &gt; R(${addrStr}) = M</div>
+                        </div>
+                    `;
+                    // Resaltar bytes en caché y en Physical Memory
+                    highlightByte(index, lineIdx, 0);
+                    document.getElementById('physicalMemoryContainer').querySelectorAll('span').forEach(el => {
+                        const addrNum = parseInt(el.innerText, 16);
+                        if (addrNum >= baseAddr && addrNum < baseAddr + state.blockSize) {
+                            el.classList.add('highlight-byte');
+                        }
+                    });
+                    renderCache();
+                    renderPhysicalMemory();
+                } else if (step === 7) {
+                    if (state.replacement === 'lru') {
+                        hitLine.lruCounter = state.timestamp++;
+                    }
+                    consoleEl.innerText = `Read: ${addrStr}\nSplit address into TIO breakdown.\nChecking Set ${index}\nLooking for Tag ${tag}... MISS!\nInvalid Line chosen for replacement.\nBlock read into cache from memory.\nLRU statuses updated.`;
+                    panel.innerHTML = `
+                        <div class="space-y-1 text-slate-800 dark:text-slate-200">
+                            <div></div>
+                            <div class="pt-2 text-sm">Historia: &gt; R(${addrStr}) = M</div>
+                            <div class="pt-2 text-emerald-600 dark:text-emerald-400">Estado: Bloque cargado en caché. LRU actualizado.</div>
+                        </div>
+                    `;
+                    endExplain();
+                }
+            } else if (type === 'read-hit') {
+                if (step === 1) {
+                    consoleEl.innerText = `Read: ${addrStr}`;
+                    panel.innerHTML = `
+                        <div class="space-y-1 text-slate-800 dark:text-slate-200">
+                            <div></div>
+                            <div class="pt-2 text-sm">Historia: &gt; R(${addrStr}) = ?</div>
+                        </div>
+                    `;
+                    document.getElementById('historyText').value = (document.getElementById('historyText').value || '') + `\n> R(${addrStr}) = ?`;
+                } else if (step === 2) {
+                    consoleEl.innerText = `Read: ${addrStr}\nSplit address into TIO breakdown.`;
+                    panel.innerHTML = `
+                        <div class="space-y-1 text-slate-800 dark:text-slate-200">
+                            <div></div>
+                            <div class="pt-2 text-sm">Historia: &gt; R(${addrStr}) = ?</div>
+                        </div>
+                    `;
+                } else if (step === 3) {
+                    consoleEl.innerText = `Read: ${addrStr}\nSplit address into TIO breakdown.\nChecking Set ${index}`;
+                    highlightSet(index);
+                    panel.innerHTML = `
+                        <div class="space-y-1 text-slate-800 dark:text-slate-200">
+                            <div></div>
+                            <div class="pt-2 text-sm">Historia: &gt; R(${addrStr}) = ?</div>
+                        </div>
+                    `;
+                } else if (step === 4) {
+                    state.hits++;
+                    document.getElementById('historyText').value = (document.getElementById('historyText').value || '').replace(/> R\(.*\) = \?/g, `> R(${addrStr}) = H`);
+                    consoleEl.innerText = `Read: ${addrStr}\nSplit address into TIO breakdown.\nChecking Set ${index}\nLooking for Tag ${tag}... HIT in Line ${hitLineIdx}!`;
+                    panel.innerHTML = `
+                        <div class="space-y-1 text-slate-800 dark:text-slate-200">
+                            <div></div>
+                            <div class="pt-2 text-sm">Historia: &gt; R(${addrStr}) = H</div>
+                        </div>
+                    `;
+                    clearHighlights();
+                    updateStatsDisplay(tag, index, offset);
+                } else if (step === 5) {
+                    if (state.replacement === 'lru') {
+                        hitLine.lruCounter = state.timestamp++;
+                    }
+                    consoleEl.innerText = `Read: ${addrStr}\nSplit address into TIO breakdown.\nChecking Set ${index}\nLooking for Tag ${tag}... HIT in Line ${hitLineIdx}!\nLRU statuses updated.`;
+                    panel.innerHTML = `
+                        <div class="space-y-1 text-slate-800 dark:text-slate-200">
+                            <div></div>
+                            <div class="pt-2 text-sm">Historia: &gt; R(${addrStr}) = H</div>
+                        </div>
+                    `;
+                } else if (step === 6) {
+                    const dataVal = hitLine.data[offset] || 0;
+                    const dataStr = '0x' + dataVal.toString(16).toUpperCase().padStart(2, '0');
+                    consoleEl.innerText = `Read: ${addrStr}\nSplit address into TIO breakdown.\nChecking Set ${index}\nLooking for Tag ${tag}... HIT in Line ${hitLineIdx}!\nLRU statuses updated.\nData: ${dataStr}`;
+                    clearHighlights();
+                    highlightByte(index, hitLineIdx, offset);
+                    panel.innerHTML = `
+                        <div class="space-y-1 text-slate-800 dark:text-slate-200">
+                            <div></div>
+                            <div class="pt-2 text-sm">Historia: &gt; R(${addrStr}) = H</div>
+                            <div class="pt-2 text-emerald-600 dark:text-emerald-400">Dato leído: ${dataStr}</div>
+                            <div class="pt-2 text-emerald-600 dark:text-emerald-400">Estado: Operación completada.</div>
+                        </div>
+                    `;
+                    endExplain();
+                }
+            } else if (type === 'write-hit') {
+                if (step === 1) {
+                    consoleEl.innerText = `Write: ${addrStr} = ${byteStr}`;
+                    panel.innerHTML = `
+                        <div class="space-y-1 text-slate-800 dark:text-slate-200">
+                            <div></div>
+                            <div class="pt-2 text-sm">Historia: &gt; W(${addrStr}) = ?</div>
+                        </div>
+                    `;
+                    document.getElementById('historyText').value = (document.getElementById('historyText').value || '') + `\n> W(${addrStr}) = ?`;
+                } else if (step === 2) {
+                    consoleEl.innerText = `Write: ${addrStr} = ${byteStr}\nSplit address into TIO breakdown.`;
+                    panel.innerHTML = `
+                        <div class="space-y-1 text-slate-800 dark:text-slate-200">
+                            <div></div>
+                            <div class="pt-2 text-sm">Historia: &gt; W(${addrStr}) = ?</div>
+                        </div>
+                    `;
+                } else if (step === 3) {
+                    consoleEl.innerText = `Write: ${addrStr} = ${byteStr}\nSplit address into TIO breakdown.\nChecking Set ${index}`;
+                    highlightSet(index);
+                    panel.innerHTML = `
+                        <div class="space-y-1 text-slate-800 dark:text-slate-200">
+                            <div></div>
+                            <div class="pt-2 text-sm">Historia: &gt; W(${addrStr}) = ?</div>
+                        </div>
+                    `;
+                } else if (step === 4) {
+                    state.hits++;
+                    document.getElementById('historyText').value = (document.getElementById('historyText').value || '').replace(/> W\(.*\) = \?/g, `> W(${addrStr}) = H`);
+                    consoleEl.innerText = `Write: ${addrStr} = ${byteStr}\nSplit address into TIO breakdown.\nChecking Set ${index}\nLooking for Tag ${tag}... HIT in Line ${hitLineIdx}!`;
+                    panel.innerHTML = `
+                        <div class="space-y-1 text-slate-800 dark:text-slate-200">
+                            <div></div>
+                            <div class="pt-2 text-sm">Historia: &gt; W(${addrStr}) = H</div>
+                        </div>
+                    `;
+                    clearHighlights();
+                    updateStatsDisplay(tag, index, offset);
+                } else if (step === 5) {
+                    hitLine.data[offset] = byteVal;
+                    if (state.writeHit === 'write-back') {
+                        hitLine.dirty = true;
+                    } else {
+                        state.ram[addr] = byteVal;
+                        state.memoryWrites++;
+                    }
+                    consoleEl.innerText = `Write: ${addrStr} = ${byteStr}\nSplit address into TIO breakdown.\nChecking Set ${index}\nLooking for Tag ${tag}... HIT in Line ${hitLineIdx}!\nByte ${addrStr} updated to ${byteStr} in cache. Line marked dirty (D=1).`;
+                    highlightByte(index, hitLineIdx, offset);
+                    highlightBit('d', index, hitLineIdx);
+                    panel.innerHTML = `
+                        <div class="space-y-1 text-slate-800 dark:text-slate-200">
+                            <div></div>
+                            <div class="pt-2 text-sm">Historia: &gt; W(${addrStr}) = H</div>
+                        </div>
+                    `;
+                    renderCache();
+                    renderPhysicalMemory();
+                } else if (step === 6) {
+                    if (state.replacement === 'lru') {
+                        hitLine.lruCounter = state.timestamp++;
+                    }
+                    consoleEl.innerText = `Write: ${addrStr} = ${byteStr}\nSplit address into TIO breakdown.\nChecking Set ${index}\nLooking for Tag ${tag}... HIT in Line ${hitLineIdx}!\nByte ${addrStr} updated to ${byteStr} in cache. Line marked dirty (D=1).\nLRU statuses updated.`;
+                    panel.innerHTML = `
+                        <div class="space-y-1 text-slate-800 dark:text-slate-200">
+                            <div></div>
+                            <div class="pt-2 text-sm">Historia: &gt; W(${addrStr}) = H</div>
+                            <div class="pt-2 text-emerald-600 dark:text-emerald-400">Estado: Cambios en caché (write-back). Interfaz libre.</div>
+                        </div>
+                    `;
+                    endExplain();
+                }
+            } else if (type === 'write-miss') {
+                if (step === 1) {
+                    consoleEl.innerText = `Write: ${addrStr} = ${byteStr}`;
+                    panel.innerHTML = `
+                        <div class="space-y-1 text-slate-800 dark:text-slate-200">
+                            <div></div>
+                            <div class="pt-2 text-sm">Historia: &gt; W(${addrStr}) = ?</div>
+                        </div>
+                    `;
+                    document.getElementById('historyText').value = (document.getElementById('historyText').value || '') + `\n> W(${addrStr}) = ?`;
+                } else if (step === 2) {
+                    consoleEl.innerText = `Write: ${addrStr} = ${byteStr}\nSplit address into TIO breakdown.`;
+                    panel.innerHTML = `
+                        <div class="space-y-1 text-slate-800 dark:text-slate-200">
+                            <div></div>
+                            <div class="pt-2 text-sm">Historia: &gt; W(${addrStr}) = ?</div>
+                        </div>
+                    `;
+                } else if (step === 3) {
+                    consoleEl.innerText = `Write: ${addrStr} = ${byteStr}\nSplit address into TIO breakdown.\nChecking Set ${index}`;
+                    highlightSet(index);
+                    panel.innerHTML = `
+                        <div class="space-y-1 text-slate-800 dark:text-slate-200">
+                            <div></div>
+                            <div class="pt-2 text-sm">Historia: &gt; W(${addrStr}) = ?</div>
+                        </div>
+                    `;
+                } else if (step === 4) {
+                    state.misses++;
+                    document.getElementById('historyText').value = (document.getElementById('historyText').value || '').replace(/> W\(.*\) = \?/g, `> W(${addrStr}) = M`);
+                    consoleEl.innerText = `Write: ${addrStr} = ${byteStr}\nSplit address into TIO breakdown.\nChecking Set ${index}\nLooking for Tag ${tag}... MISS!`;
+                    panel.innerHTML = `
+                        <div class="space-y-1 text-slate-800 dark:text-slate-200">
+                            <div></div>
+                            <div class="pt-2 text-sm">Historia: &gt; W(${addrStr}) = M</div>
+                        </div>
+                    `;
+                    updateStatsDisplay(tag, index, offset);
+                } else if (step === 5) {
+                    const { line: targetLine, wasInvalid } = getReplacementLine(setLines, index);
+                    const lineIdx = setLines.indexOf(targetLine);
+                    consoleEl.innerText = `Write: ${addrStr} = ${byteStr}\nSplit address into TIO breakdown.\nChecking Set ${index}\nLooking for Tag ${tag}... MISS!\nInvalid Line ${lineIdx} chosen for replacement.`;
+                    highlightLine(index, lineIdx);
+                    panel.innerHTML = `
+                        <div class="space-y-1 text-slate-800 dark:text-slate-200">
+                            <div></div>
+                            <div class="pt-2 text-sm">Historia: &gt; W(${addrStr}) = M</div>
+                        </div>
+                    `;
+                } else if (step === 6) {
+                    const { line: targetLine, wasInvalid } = getReplacementLine(setLines, index);
+                    const lineIdx = setLines.indexOf(targetLine);
+                    const baseAddr = blockStartAddr;
+                    // Write-back si la línea es dirty
+                    if (!wasInvalid && targetLine.dirty) {
+                        writeBackLine(targetLine, index);
+                    }
+                    // Cargar bloque desde RAM (Write Allocate)
+                    let blockData = [];
+                    for (let i = 0; i < state.blockSize; i++) {
+                        blockData.push(state.ram[baseAddr + i] || 0);
+                    }
+                    targetLine.valid = true;
+                    targetLine.dirty = false;
+                    targetLine.tag = tag;
+                    targetLine.data = blockData;
+                    targetLine.lruCounter = state.timestamp++;
+                    targetLine.fifoOrder = state.timestamp++;
+                    targetLine.timestamp = Date.now();
+                    state.memoryReads++;
+                    consoleEl.innerText = `Write: ${addrStr} = ${byteStr}\nSplit address into TIO breakdown.\nChecking Set ${index}\nLooking for Tag ${tag}... MISS!\nInvalid Line ${lineIdx} chosen for replacement.\nBlock read into cache from memory at address 0x${baseAddr.toString(16).toUpperCase()}.`;
+                    panel.innerHTML = `
+                        <div class="space-y-1 text-slate-800 dark:text-slate-200">
+                            <div></div>
+                            <div class="pt-2 text-sm">Historia: &gt; W(${addrStr}) = M</div>
+                        </div>
+                    `;
+                    highlightByte(index, lineIdx, 0);
+                    document.getElementById('physicalMemoryContainer').querySelectorAll('span').forEach(el => {
+                        const addrNum = parseInt(el.innerText, 16);
+                        if (addrNum >= baseAddr && addrNum < baseAddr + state.blockSize) {
+                            el.classList.add('highlight-byte');
+                        }
+                    });
+                    renderCache();
+                    renderPhysicalMemory();
+                } else if (step === 7) {
+                    const targetLine = setLines.find(l => l.valid && l.tag === tag);
+                    const lineIdx = setLines.indexOf(targetLine);
+                    targetLine.data[offset] = byteVal;
+                    targetLine.dirty = true;
+                    consoleEl.innerText = `Write: ${addrStr} = ${byteStr}\nSplit address into TIO breakdown.\nChecking Set ${index}\nLooking for Tag ${tag}... MISS!\nInvalid Line chosen for replacement.\nBlock read into cache from memory.\nByte ${addrStr} updated to ${byteStr} in cache. Line marked dirty (D=1).`;
+                    highlightByte(index, lineIdx, offset);
+                    highlightBit('d', index, lineIdx);
+                    panel.innerHTML = `
+                        <div class="space-y-1 text-slate-800 dark:text-slate-200">
+                            <div></div>
+                            <div class="pt-2 text-sm">Historia: &gt; W(${addrStr}) = M</div>
+                        </div>
+                    `;
+                    renderCache();
+                    renderPhysicalMemory();
+                } else if (step === 8) {
+                    if (state.replacement === 'lru') {
+                        const tl = setLines.find(l => l.valid && l.tag === tag);
+                        tl.lruCounter = state.timestamp++;
+                    }
+                    consoleEl.innerText = `Write: ${addrStr} = ${byteStr}\nSplit address into TIO breakdown.\nChecking Set ${index}\nLooking for Tag ${tag}... MISS!\nInvalid Line chosen for replacement.\nBlock read into cache from memory.\nByte ${addrStr} updated to ${byteStr} in cache. Line marked dirty (D=1).\nLRU statuses updated.`;
+                    panel.innerHTML = `
+                        <div class="space-y-1 text-slate-800 dark:text-slate-200">
+                            <div></div>
+                            <div class="pt-2 text-sm">Historia: &gt; W(${addrStr}) = M</div>
+                            <div class="pt-2 text-emerald-600 dark:text-emerald-400">Estado: Bloque asignado con modificación, D=1. Explicación concluida.</div>
+                        </div>
+                    `;
+                    endExplain();
+                }
+            } else if (type === 'write-miss-nwa') {
+                if (step === 1) {
+                    consoleEl.innerText = `Write: ${addrStr} = ${byteStr}`;
+                    panel.innerHTML = `
+                        <div class="space-y-1 text-slate-800 dark:text-slate-200">
+                            <div></div>
+                            <div class="pt-2 text-sm">Historia: &gt; W(${addrStr}) = ?</div>
+                        </div>
+                    `;
+                    document.getElementById('historyText').value = (document.getElementById('historyText').value || '') + `\n> W(${addrStr}) = ?`;
+                } else if (step === 2) {
+                    consoleEl.innerText = `Write: ${addrStr} = ${byteStr}\nSplit address into TIO breakdown.`;
+                    panel.innerHTML = `
+                        <div class="space-y-1 text-slate-800 dark:text-slate-200">
+                            <div></div>
+                            <div class="pt-2 text-sm">Historia: &gt; W(${addrStr}) = ?</div>
+                        </div>
+                    `;
+                } else if (step === 3) {
+                    consoleEl.innerText = `Write: ${addrStr} = ${byteStr}\nSplit address into TIO breakdown.\nChecking Set ${index}`;
+                    highlightSet(index);
+                    panel.innerHTML = `
+                        <div class="space-y-1 text-slate-800 dark:text-slate-200">
+                            <div></div>
+                            <div class="pt-2 text-sm">Historia: &gt; W(${addrStr}) = ?</div>
+                        </div>
+                    `;
+                } else if (step === 4) {
+                    state.misses++;
+                    document.getElementById('historyText').value = (document.getElementById('historyText').value || '').replace(/> W\(.*\) = \?/g, `> W(${addrStr}) = M`);
+                    consoleEl.innerText = `Write: ${addrStr} = ${byteStr}\nSplit address into TIO breakdown.\nChecking Set ${index}\nLooking for Tag ${tag}... MISS!`;
+                    panel.innerHTML = `
+                        <div class="space-y-1 text-slate-800 dark:text-slate-200">
+                            <div></div>
+                            <div class="pt-2 text-sm">Historia: &gt; W(${addrStr}) = M</div>
+                        </div>
+                    `;
+                    updateStatsDisplay(tag, index, offset);
+                } else if (step === 5) {
+                    state.ram[addr] = byteVal;
+                    state.memoryWrites++;
+                    consoleEl.innerText = `Write: ${addrStr} = ${byteStr}\nSplit address into TIO breakdown.\nChecking Set ${index}\nLooking for Tag ${tag}... MISS!\nNo-write-allocate: byte escrito directamente a RAM.`;
+                    panel.innerHTML = `
+                        <div class="space-y-1 text-slate-800 dark:text-slate-200">
+                            <div></div>
+                            <div class="pt-2 text-sm">Historia: &gt; W(${addrStr}) = M</div>
+                        </div>
+                    `;
+                    renderPhysicalMemory();
+                } else if (step === 6) {
+                    consoleEl.innerText = `Write: ${addrStr} = ${byteStr}\nSplit address into TIO breakdown.\nChecking Set ${index}\nLooking for Tag ${tag}... MISS!\nNo-write-allocate: byte escrito directamente a RAM.\nLRU statuses updated.`;
+                    panel.innerHTML = `
+                        <div class="space-y-1 text-slate-800 dark:text-slate-200">
+                            <div></div>
+                            <div class="pt-2 text-sm">Historia: &gt; W(${addrStr}) = M</div>
+                            <div class="pt-2 text-emerald-600 dark:text-emerald-400">Estado: Escritura completada sin asignar bloque en caché.</div>
+                        </div>
+                    `;
+                    endExplain();
+                }
+            }
+
+            renderCache();
+        }
+
+        // Interceptar el botón actionBtn cuando está en modo 'Next'
+        const originalAction = onSystemAction;
+        document.getElementById('actionBtn').onclick = function() {
+            if (state.explainStep > 0 && state.explainStep < 3) {
+                state.explainStep++;
+                renderExplanationStep();
+            } else if (state.explainStep === 3) {
+                state.explainStep = 4;
+                renderExplanationStep();
+            } else {
+                originalAction();
+            }
+        };
+
+        function nextExplainStep() {
+            if (!state.explainMode) return;
+            state.explainOpStep++;
+            renderExplainStep();
+        }
+
+        function renderCache() {
+            const container = document.getElementById('cacheContainer');
+            if (!state.initialized) {
+                container.innerHTML = '<div class="text-slate-500 italic">Caché no generada.</div>';
+                return;
+            }
+
+            let html = '';
+            for (let s = 0; s < state.numSets; s++) {
+                for (let l = 0; l < state.linesPerSet; l++) {
+                    const line = state.cache[s][l];
+                    const vStr = line.valid ? '1' : '0';
+                    const dStr = line.dirty ? '1' : '0';
+                    const tStr = line.tag !== null ? line.tag.toString(16).toUpperCase().padStart(state.bitsTag > 4 ? 2 : 1, '0') : '-';
+                    
+                    let dataCells = '';
+                    for (let b = 0; b < state.blockSize; b++) {
+                        const val = line.valid ? line.data[b].toString(16).toUpperCase().padStart(2, '0') : '--';
+                        dataCells += `<span class="bg-white dark:bg-slate-800 px-1 py-0.5 rounded border border-slate-300 dark:border-slate-700">${val}</span> `;
+                    }
+
+                    html += `
+                        <div class="flex items-center space-x-2 py-1">
+                            <span class="text-amber-800 dark:text-amber-500 font-semibold w-12">Set ${s}</span>
+                            <span class="bg-slate-300 dark:bg-slate-800 px-1.5 py-0.5 rounded text-center">${vStr}</span>
+                            <span class="bg-slate-300 dark:bg-slate-800 px-1.5 py-0.5 rounded text-center">${dStr}</span>
+                            <span class="bg-slate-300 dark:bg-slate-800 px-1.5 py-0.5 rounded text-center w-8">${tStr}</span>
+                            <div class="flex space-x-1">${dataCells}</div>
+                        </div>
+                    `;
+                }
+            }
+            container.innerHTML = html;
+        }
+
+        function renderPhysicalMemory() {
+            const container = document.getElementById('physicalMemoryContainer');
+            let html = '';
+            const ramSize = Math.pow(2, state.addrWidth);
+            
+            for (let base = 0; base < ramSize; base += 8) {
+                let rowBytes = '';
+                for (let i = 0; i < 8; i++) {
+                    const addr = base + i;
+                    if (addr < ramSize) {
+                        const val = (state.ram[addr] !== undefined) ? state.ram[addr].toString(16).toUpperCase().padStart(2, '0') : '00';
+                        rowBytes += `<span class="bg-white dark:bg-slate-800 px-1 py-0.5 rounded border border-slate-300 dark:border-slate-700">${val}</span> `;
+                    }
+                }
+                const addrHex = '0x' + base.toString(16).toUpperCase().padStart(2, '0');
+                html += `
+                    <div class="flex items-center space-x-2 py-0.5">
+                        <span class="text-emerald-700 dark:text-emerald-400 font-semibold w-12">${addrHex}</span>
+                        <div class="flex space-x-1">${rowBytes}</div>
+                    </div>
+                `;
+            }
+            container.innerHTML = html;
+        }
+
+        function parseAddress(addrStr) {
+            let clean = addrStr.trim().toLowerCase();
+            if (clean.startsWith('0x')) clean = clean.slice(2);
+            let addr = parseInt(clean, 16);
+            if (isNaN(addr)) return null;
+            const maxAddr = Math.pow(2, state.addrWidth) - 1;
+            if (addr < 0 || addr > maxAddr) return null;
+            return addr;
+        }
+
+        function decomposeAddress(addr) {
+            const maskOffset = (1 << state.bitsOffset) - 1;
+            const offset = addr & maskOffset;
+            const maskIndex = (1 << state.bitsIndex) - 1;
+            const index = (state.bitsIndex > 0) ? (addr >> state.bitsOffset) & maskIndex : 0;
+            const tagShift = state.bitsOffset + state.bitsIndex;
+            const tag = addr >> tagShift;
+            return { tag, index, offset };
+        }
+
+        function updateStatsDisplay(tag, index, offset) {
+            document.getElementById('resTag').innerText = tag !== null ? tag.toString(16).toUpperCase().padStart(state.bitsTag > 4 ? 2 : 1, '0') : '-';
+            document.getElementById('resIndex').innerText = index !== null ? index.toString(16).toUpperCase() : '-';
+            document.getElementById('resOffset').innerText = offset !== null ? offset.toString(16).toUpperCase() : '-';
+            document.getElementById('statHits').innerText = state.hits;
+            document.getElementById('statMisses').innerText = state.misses;
+        }
+
+        function getReplacementLine(setLines, index) {
+            let targetLine = null;
+            for (let line of setLines) {
+                if (!line.valid) {
+                    targetLine = line;
+                    break;
+                }
+            }
+            if (targetLine) return { line: targetLine, wasInvalid: true };
+
+            if (state.replacement === 'lru') {
+                targetLine = setLines.reduce((prev, curr) => (curr.lruCounter < prev.lruCounter) ? curr : prev);
+            } else if (state.replacement === 'fifo') {
+                targetLine = setLines.reduce((prev, curr) => (curr.fifoOrder < prev.fifoOrder) ? curr : prev);
+            } else if (state.replacement === 'random') {
+                targetLine = setLines[Math.floor(Math.random() * setLines.length)];
+            }
+            return { line: targetLine, wasInvalid: false };
+        }
+
+        function classifyMiss(setLines, blockStartAddr, wasInvalid) {
+            if (wasInvalid) return 'Invalid';
+            const blockKey = Math.floor(blockStartAddr / state.blockSize);
+            if (!state.loadedBlocks.has(blockKey)) {
+                state.loadedBlocks.add(blockKey);
+                return 'Compulsory';
+            }
+            return 'Conflict';
+        }
+
+        function writeBackLine(line, setIdx) {
+            if (!line.dirty || !line.valid) return;
+            const tag = line.tag;
+            const baseAddr = (tag << (state.bitsIndex + state.bitsOffset)) | (setIdx << state.bitsOffset);
+            for (let i = 0; i < state.blockSize; i++) {
+                state.ram[baseAddr + i] = line.data[i];
+            }
+            state.memoryWrites++;
+        }
+
+        function handleRead() {
+            if (!state.initialized) {
+                onSystemAction();
+            }
+            const explainCheck = document.getElementById('explainOpCheck');
+            if (explainCheck && explainCheck.checked) {
+                startExplain('read');
+                return;
+            }
+            const addrInput = document.getElementById('readAddr').value;
+            const addr = parseAddress(addrInput);
+            if (addr === null) {
+                alert("Dirección de memoria inválida.");
+                return;
+            }
+
+            const { tag, index, offset } = decomposeAddress(addr);
+            updateStatsDisplay(tag, index, offset);
+
+            let setLines = state.cache[index];
+            let hitLine = null;
+            for (let line of setLines) {
+                if (line.valid && line.tag === tag) {
+                    hitLine = line;
+                    break;
+                }
+            }
+
+            if (hitLine) {
+                state.hits++;
+                if (state.replacement === 'lru') {
+                    hitLine.lruCounter = state.timestamp++;
+                }
+                document.getElementById('simulationConsole').innerText = `Cache HIT for address 0x${addr.toString(16).toUpperCase()}`;
+            } else {
+                state.misses++;
+                state.memoryReads++;
+
+                const blockStartAddr = addr - offset;
+                const { line: targetLine, wasInvalid } = getReplacementLine(setLines, index);
+                const missType = classifyMiss(setLines, blockStartAddr, wasInvalid);
+                if (missType === 'Compulsory') {
+                    state.compulsoryMisses++;
+                } else if (missType === 'Conflict') {
+                    state.conflictMisses++;
+                }
+
+                if (!wasInvalid) {
+                    writeBackLine(targetLine, index);
+                }
+
+                let blockData = [];
+                for (let i = 0; i < state.blockSize; i++) {
+                    blockData.push(state.ram[blockStartAddr + i] || 0);
+                }
+
+                targetLine.valid = true;
+                targetLine.dirty = false;
+                targetLine.tag = tag;
+                targetLine.data = blockData;
+                targetLine.lruCounter = state.timestamp++;
+                targetLine.fifoOrder = state.timestamp++;
+                targetLine.timestamp = Date.now();
+
+                document.getElementById('simulationConsole').innerText = `Cache MISS (${missType}) for address 0x${addr.toString(16).toUpperCase()}`;
+            }
+
+            renderCache();
+            addToHistory(`r 0x${addr.toString(16).toUpperCase()}`);
+        }
+
+        function handleWrite() {
+            if (!state.initialized) {
+                onSystemAction();
+            }
+            const explainCheck = document.getElementById('explainOpCheck');
+            if (explainCheck && explainCheck.checked) {
+                startExplain('write');
+                return;
+            }
+            const addrInput = document.getElementById('writeAddr').value;
+            const byteInput = document.getElementById('writeByte').value;
+            const addr = parseAddress(addrInput);
+            let byteVal = parseInt(byteInput, 16);
+
+            if (addr === null || isNaN(byteVal)) {
+                alert("Dirección o valor inválido.");
+                return;
+            }
+
+            const { tag, index, offset } = decomposeAddress(addr);
+            updateStatsDisplay(tag, index, offset);
+
+            let setLines = state.cache[index];
+            let hitLine = null;
+            for (let line of setLines) {
+                if (line.valid && line.tag === tag) {
+                    hitLine = line;
+                    break;
+                }
+            }
+
+            if (hitLine) {
+                state.hits++;
+                if (state.replacement === 'lru') {
+                    hitLine.lruCounter = state.timestamp++;
+                }
+                hitLine.data[offset] = byteVal;
+                if (state.writeHit === 'write-back') {
+                    hitLine.dirty = true;
+                } else {
+                    state.ram[addr] = byteVal;
+                    state.memoryWrites++;
+                }
+                document.getElementById('simulationConsole').innerText = `Write HIT at 0x${addr.toString(16).toUpperCase()}`;
+            } else {
+                state.misses++;
+
+                const blockStartAddr = addr - offset;
+                const { line: targetLine, wasInvalid } = getReplacementLine(setLines, index);
+                const missType = classifyMiss(setLines, blockStartAddr, wasInvalid);
+                if (missType === 'Compulsory') {
+                    state.compulsoryMisses++;
+                } else if (missType === 'Conflict') {
+                    state.conflictMisses++;
+                }
+
+                if (!wasInvalid) {
+                    writeBackLine(targetLine, index);
+                }
+
+                if (state.writeMiss === 'write-allocate') {
+                    let blockData = [];
+                    for (let i = 0; i < state.blockSize; i++) {
+                        blockData.push(state.ram[blockStartAddr + i] || 0);
+                    }
+                    targetLine.valid = true;
+                    targetLine.tag = tag;
+                    targetLine.data = blockData;
+                    targetLine.lruCounter = state.timestamp++;
+                    targetLine.fifoOrder = state.timestamp++;
+                    targetLine.timestamp = Date.now();
+                    targetLine.data[offset] = byteVal;
+                    if (state.writeHit === 'write-back') {
+                        targetLine.dirty = true;
+                    } else {
+                        state.ram[addr] = byteVal;
+                        state.memoryWrites++;
+                    }
+                } else {
+                    state.ram[addr] = byteVal;
+                    state.memoryWrites++;
+                }
+                document.getElementById('simulationConsole').innerText = `Write MISS (${missType}) at 0x${addr.toString(16).toUpperCase()}`;
+            }
+
+            renderCache();
+            renderPhysicalMemory();
+            addToHistory(`w 0x${addr.toString(16).toUpperCase()} 0x${byteVal.toString(16).toUpperCase().padStart(2, '0')}`);
+        }
+
+        function handleFlush() {
+            if (!state.initialized) return;
+            for (let s = 0; s < state.numSets; s++) {
+                for (let line of state.cache[s]) {
+                    if (line.dirty && line.valid) {
+                        const tag = line.tag;
+                        const baseAddr = (tag << (state.bitsIndex + state.bitsOffset)) | (s << state.bitsOffset);
+                        for (let i = 0; i < state.blockSize; i++) {
+                            state.ram[baseAddr + i] = line.data[i];
+                        }
+                        state.memoryWrites++;
+                    }
+                }
+            }
+            initCache();
+            state.hits = 0;
+            state.misses = 0;
+            state.compulsoryMisses = 0;
+            state.conflictMisses = 0;
+            renderCache();
+            updateStatsDisplay(null, null, null);
+            document.getElementById('simulationConsole').innerText = 'Cache flushed.';
+        }
+
+        function addToHistory(cmd) {
+            state.accessHistory.push(cmd);
+            document.getElementById('historyText').value = state.accessHistory.join('\n');
+        }
+
+        function loadHistory() {
+            const text = document.getElementById('historyText').value;
+            state.accessHistory = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+            for (let cmd of state.accessHistory) {
+                let parts = cmd.split(/\s+/);
+                if (parts[0] === 'r' && parts[1]) {
+                    document.getElementById('readAddr').value = parts[1].replace('0x','');
+                    handleRead();
+                } else if (parts[0] === 'w' && parts[1] && parts[2]) {
+                    document.getElementById('writeAddr').value = parts[1].replace('0x','');
+                    document.getElementById('writeByte').value = parts[2].replace('0x','');
+                    handleWrite();
+                }
+            }
+        }
+
+        let navIdx = -1;
+        function navPrev() {
+            if (state.accessHistory.length === 0) return;
+            if (navIdx === -1) navIdx = state.accessHistory.length - 1;
+            else if (navIdx > 0) navIdx--;
+            executeCmd(state.accessHistory[navIdx]);
+        }
+
+        function navNext() {
+            if (state.accessHistory.length === 0) return;
+            if (navIdx < state.accessHistory.length - 1) navIdx++;
+            else navIdx = 0;
+            executeCmd(state.accessHistory[navIdx]);
+        }
+
+        function executeCmd(cmd) {
+            let parts = cmd.split(/\s+/);
+            if (parts[0] === 'r') {
+                document.getElementById('readAddr').value = parts[1].replace('0x','');
+                handleRead();
+            } else if (parts[0] === 'w') {
+                document.getElementById('writeAddr').value = parts[1].replace('0x','');
+                document.getElementById('writeByte').value = parts[2].replace('0x','');
+                handleWrite();
+            }
+        }
+
+        window.onload = function() {
+            onSystemAction();
+        }
+    </script>
+</body>
+</html>
