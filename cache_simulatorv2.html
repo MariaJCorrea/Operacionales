@@ -526,17 +526,14 @@
             const readAddr = document.getElementById('readAddr');
             const writeAddr = document.getElementById('writeAddr');
             const writeByte = document.getElementById('writeByte');
-            const explainBtn = document.getElementById('nextExplainBtn');
             if (lock) {
                 readAddr.disabled = true;
                 writeAddr.disabled = true;
                 writeByte.disabled = true;
-                explainBtn.disabled = true;
             } else {
                 readAddr.disabled = false;
                 writeAddr.disabled = false;
                 writeByte.disabled = false;
-                explainBtn.disabled = false;
             }
         }
 
@@ -550,71 +547,48 @@
             clearHighlights();
             const container = document.getElementById('cacheContainer');
             if (!container) return;
-            const setEls = container.querySelectorAll('div.flex.items-center.space-x-2.py-1');
-            const setEl = setEls[index];
-            if (setEl) setEl.classList.add('highlight-set');
+            const setEls = container.querySelectorAll(`div[data-set="${index}"]`);
+            setEls.forEach(el => {
+                if (el.classList.contains('flex')) {
+                    el.classList.add('highlight-set');
+                }
+            });
         }
 
         function highlightLine(setIdx, lineIdx) {
             clearHighlights();
             const container = document.getElementById('cacheContainer');
             if (!container) return;
-            const setEls = container.querySelectorAll('div.flex.items-center.space-x-2.py-1');
-            let count = 0;
-            for (let s = 0; s < setEls.length; s++) {
-                for (let l = 0; l < state.linesPerSet; l++) {
-                    if (s === setIdx && l === lineIdx) {
-                        setEls[count].classList.add('highlight-line');
-                        return;
-                    }
-                    count++;
+            const lineEls = container.querySelectorAll(`div[data-set="${setIdx}"][data-line="${lineIdx}"]`);
+            lineEls.forEach(el => {
+                if (el.classList.contains('flex')) {
+                    el.classList.add('highlight-line');
                 }
-            }
+            });
         }
 
         function highlightBit(type, setIdx, lineIdx) {
             clearHighlights();
             const container = document.getElementById('cacheContainer');
             if (!container) return;
-            const setEls = container.querySelectorAll('div.flex.items-center.space-x-2.py-1');
-            let count = 0;
-            let targetEl = null;
-            for (let s = 0; s < setEls.length; s++) {
-                for (let l = 0; l < state.linesPerSet; l++) {
-                    if (s === setIdx && l === lineIdx) {
-                        targetEl = setEls[count];
-                        break;
-                    }
-                    count++;
-                }
-                if (targetEl) break;
+            const vEl = container.querySelector(`span[data-set="${setIdx}"][data-line="${lineIdx}"]:not([data-offset])`);
+            if (!vEl) return;
+            if (type === 'v') {
+                vEl.classList.add('highlight-bit-v');
+            } else if (type === 'd') {
+                const dEl = container.querySelectorAll(`span[data-set="${setIdx}"][data-line="${lineIdx}"]:not([data-offset])`)[1];
+                if (dEl) dEl.classList.add('highlight-bit-d');
             }
-            if (!targetEl) return;
-            const spans = targetEl.querySelectorAll('span.bg-slate-300.dark\\:bg-slate-800.px-1.5.py-0.5.rounded.text-center');
-            if (type === 'v' && spans[0]) spans[0].classList.add('highlight-bit-v');
-            if (type === 'd' && spans[1]) spans[1].classList.add('highlight-bit-d');
         }
 
         function highlightByte(setIdx, lineIdx, offset) {
             clearHighlights();
             const container = document.getElementById('cacheContainer');
             if (!container) return;
-            const setEls = container.querySelectorAll('div.flex.items-center.space-x-2.py-1');
-            let count = 0;
-            let targetEl = null;
-            for (let s = 0; s < setEls.length; s++) {
-                for (let l = 0; l < state.linesPerSet; l++) {
-                    if (s === setIdx && l === lineIdx) {
-                        targetEl = setEls[count];
-                        break;
-                    }
-                    count++;
-                }
-                if (targetEl) break;
+            const byteEl = container.querySelector(`span[data-set="${setIdx}"][data-line="${lineIdx}"][data-offset="${offset}"]`);
+            if (byteEl) {
+                byteEl.classList.add('highlight-byte');
             }
-            if (!targetEl) return;
-            const byteSpans = targetEl.querySelectorAll('span.bg-white.dark\\:bg-slate-800.px-1.py-0.5.rounded.border.border-slate-300.dark\\:border-slate-700');
-            if (byteSpans[offset]) byteSpans[offset].classList.add('highlight-byte');
         }
 
         function startExplain(opType) {
@@ -804,21 +778,27 @@
                             <div class="pt-2 text-sm">Historia: &gt; R(${addrStr}) = M</div>
                         </div>
                     `;
-                    // Resaltar bytes en caché y en Physical Memory
-                    highlightByte(index, lineIdx, 0);
-                    document.getElementById('physicalMemoryContainer').querySelectorAll('span').forEach(el => {
-                        const addrNum = parseInt(el.innerText, 16);
-                        if (addrNum >= baseAddr && addrNum < baseAddr + state.blockSize) {
-                            el.classList.add('highlight-byte');
-                        }
-                    });
                     renderCache();
                     renderPhysicalMemory();
-                } else if (step === 7) {
-                    if (state.replacement === 'lru') {
-                        hitLine.lruCounter = state.timestamp++;
+                    // Resaltar bytes en caché y en Physical Memory
+                    highlightByte(index, lineIdx, 0);
+                    const physContainerReadMiss = document.getElementById('physicalMemoryContainer');
+                    if (physContainerReadMiss) {
+                        physContainerReadMiss.querySelectorAll(`span[data-addr]`).forEach(el => {
+                            const addrNum = parseInt(el.getAttribute('data-addr'), 10);
+                            if (addrNum >= baseAddr && addrNum < baseAddr + state.blockSize) {
+                                el.classList.add('highlight-byte');
+                            }
+                        });
                     }
-                    consoleEl.innerText = `Read: ${addrStr}\nSplit address into TIO breakdown.\nChecking Set ${index}\nLooking for Tag ${tag}... MISS!\nInvalid Line chosen for replacement.\nBlock read into cache from memory.\nLRU statuses updated.`;
+                } else if (step === 7) {
+                    const { line: targetLine } = getReplacementLine(setLines, index);
+                    const lineIdx = setLines.indexOf(targetLine);
+                    if (state.replacement === 'lru') {
+                        targetLine.lruCounter = state.timestamp++;
+                    }
+                    const baseAddr = blockStartAddr;
+                    consoleEl.innerText = `Read: ${addrStr}\\nSplit address into TIO breakdown.\\nChecking Set ${index}\\nLooking for Tag ${tag}... MISS!\\nInvalid Line ${lineIdx} chosen for replacement.\\nBlock read into cache from memory at address 0x${baseAddr.toString(16).toUpperCase()}.\\nLRU statuses updated.`;
                     panel.innerHTML = `
                         <div class="space-y-1 text-slate-800 dark:text-slate-200">
                             <div></div>
@@ -829,6 +809,7 @@
                     endExplain();
                 }
             } else if (type === 'read-hit') {
+                // PASO 1: Inicio de Lectura
                 if (step === 1) {
                     consoleEl.innerText = `Read: ${addrStr}`;
                     panel.innerHTML = `
@@ -838,7 +819,9 @@
                         </div>
                     `;
                     document.getElementById('historyText').value = (document.getElementById('historyText').value || '') + `\n> R(${addrStr}) = ?`;
-                } else if (step === 2) {
+                }
+                // PASO 2: División TIO Confirmada
+                else if (step === 2) {
                     consoleEl.innerText = `Read: ${addrStr}\nSplit address into TIO breakdown.`;
                     panel.innerHTML = `
                         <div class="space-y-1 text-slate-800 dark:text-slate-200">
@@ -846,7 +829,9 @@
                             <div class="pt-2 text-sm">Historia: &gt; R(${addrStr}) = ?</div>
                         </div>
                     `;
-                } else if (step === 3) {
+                }
+                // PASO 3: Selección del Set
+                else if (step === 3) {
                     consoleEl.innerText = `Read: ${addrStr}\nSplit address into TIO breakdown.\nChecking Set ${index}`;
                     highlightSet(index);
                     panel.innerHTML = `
@@ -855,7 +840,9 @@
                             <div class="pt-2 text-sm">Historia: &gt; R(${addrStr}) = ?</div>
                         </div>
                     `;
-                } else if (step === 4) {
+                }
+                // PASO 4: Detección de Cache Hit
+                else if (step === 4) {
                     state.hits++;
                     document.getElementById('historyText').value = (document.getElementById('historyText').value || '').replace(/> R\(.*\) = \?/g, `> R(${addrStr}) = H`);
                     consoleEl.innerText = `Read: ${addrStr}\nSplit address into TIO breakdown.\nChecking Set ${index}\nLooking for Tag ${tag}... HIT in Line ${hitLineIdx}!`;
@@ -867,18 +854,23 @@
                     `;
                     clearHighlights();
                     updateStatsDisplay(tag, index, offset);
-                } else if (step === 5) {
+                }
+                // PASO 5: Actualización del Estado LRU
+                else if (step === 5) {
                     if (state.replacement === 'lru') {
                         hitLine.lruCounter = state.timestamp++;
                     }
                     consoleEl.innerText = `Read: ${addrStr}\nSplit address into TIO breakdown.\nChecking Set ${index}\nLooking for Tag ${tag}... HIT in Line ${hitLineIdx}!\nLRU statuses updated.`;
+                    highlightSet(index);
                     panel.innerHTML = `
                         <div class="space-y-1 text-slate-800 dark:text-slate-200">
                             <div></div>
                             <div class="pt-2 text-sm">Historia: &gt; R(${addrStr}) = H</div>
                         </div>
                     `;
-                } else if (step === 6) {
+                }
+                // PASO 6: Lectura del Byte Específico y Retorno de Dato
+                else if (step === 6) {
                     const dataVal = hitLine.data[offset] || 0;
                     const dataStr = '0x' + dataVal.toString(16).toUpperCase().padStart(2, '0');
                     consoleEl.innerText = `Read: ${addrStr}\nSplit address into TIO breakdown.\nChecking Set ${index}\nLooking for Tag ${tag}... HIT in Line ${hitLineIdx}!\nLRU statuses updated.\nData: ${dataStr}`;
@@ -1043,21 +1035,26 @@
                             <div class="pt-2 text-sm">Historia: &gt; W(${addrStr}) = M</div>
                         </div>
                     `;
-                    highlightByte(index, lineIdx, 0);
-                    document.getElementById('physicalMemoryContainer').querySelectorAll('span').forEach(el => {
-                        const addrNum = parseInt(el.innerText, 16);
-                        if (addrNum >= baseAddr && addrNum < baseAddr + state.blockSize) {
-                            el.classList.add('highlight-byte');
-                        }
-                    });
                     renderCache();
                     renderPhysicalMemory();
+                    highlightByte(index, lineIdx, 0);
+                    const physContainer2 = document.getElementById('physicalMemoryContainer');
+                    if (physContainer2) {
+                        physContainer2.querySelectorAll(`span[data-addr]`).forEach(el => {
+                            const addrNum = parseInt(el.getAttribute('data-addr'), 10);
+                            if (addrNum >= baseAddr && addrNum < baseAddr + state.blockSize) {
+                                el.classList.add('highlight-byte');
+                            }
+                        });
+                    }
                 } else if (step === 7) {
                     const targetLine = setLines.find(l => l.valid && l.tag === tag);
                     const lineIdx = setLines.indexOf(targetLine);
                     targetLine.data[offset] = byteVal;
                     targetLine.dirty = true;
                     consoleEl.innerText = `Write: ${addrStr} = ${byteStr}\nSplit address into TIO breakdown.\nChecking Set ${index}\nLooking for Tag ${tag}... MISS!\nInvalid Line chosen for replacement.\nBlock read into cache from memory.\nByte ${addrStr} updated to ${byteStr} in cache. Line marked dirty (D=1).`;
+                    renderCache();
+                    renderPhysicalMemory();
                     highlightByte(index, lineIdx, offset);
                     highlightBit('d', index, lineIdx);
                     panel.innerHTML = `
@@ -1066,8 +1063,6 @@
                             <div class="pt-2 text-sm">Historia: &gt; W(${addrStr}) = M</div>
                         </div>
                     `;
-                    renderCache();
-                    renderPhysicalMemory();
                 } else if (step === 8) {
                     if (state.replacement === 'lru') {
                         const tl = setLines.find(l => l.valid && l.tag === tag);
@@ -1164,6 +1159,11 @@
 
         function nextExplainStep() {
             if (!state.explainMode) return;
+            const maxSteps = { 'read-hit': 6, 'read-miss': 7, 'write-hit': 6, 'write-miss': 8, 'write-miss-nwa': 6 };
+            if (state.explainOpStep >= (maxSteps[state.explainOpType] || 0)) {
+                endExplain();
+                return;
+            }
             state.explainOpStep++;
             renderExplainStep();
         }
@@ -1186,15 +1186,15 @@
                     let dataCells = '';
                     for (let b = 0; b < state.blockSize; b++) {
                         const val = line.valid ? line.data[b].toString(16).toUpperCase().padStart(2, '0') : '--';
-                        dataCells += `<span class="bg-white dark:bg-slate-800 px-1 py-0.5 rounded border border-slate-300 dark:border-slate-700">${val}</span> `;
+                        dataCells += `<span data-set="${s}" data-line="${l}" data-offset="${b}" class="bg-white dark:bg-slate-800 px-1 py-0.5 rounded border border-slate-300 dark:border-slate-700">${val}</span> `;
                     }
 
                     html += `
-                        <div class="flex items-center space-x-2 py-1">
+                        <div class="flex items-center space-x-2 py-1" data-set="${s}" data-line="${l}">
                             <span class="text-amber-800 dark:text-amber-500 font-semibold w-12">Set ${s}</span>
-                            <span class="bg-slate-300 dark:bg-slate-800 px-1.5 py-0.5 rounded text-center">${vStr}</span>
-                            <span class="bg-slate-300 dark:bg-slate-800 px-1.5 py-0.5 rounded text-center">${dStr}</span>
-                            <span class="bg-slate-300 dark:bg-slate-800 px-1.5 py-0.5 rounded text-center w-8">${tStr}</span>
+                            <span data-set="${s}" data-line="${l}" class="bg-slate-300 dark:bg-slate-800 px-1.5 py-0.5 rounded text-center">${vStr}</span>
+                            <span data-set="${s}" data-line="${l}" class="bg-slate-300 dark:bg-slate-800 px-1.5 py-0.5 rounded text-center">${dStr}</span>
+                            <span data-set="${s}" data-line="${l}" class="bg-slate-300 dark:bg-slate-800 px-1.5 py-0.5 rounded text-center w-8">${tStr}</span>
                             <div class="flex space-x-1">${dataCells}</div>
                         </div>
                     `;
@@ -1214,7 +1214,7 @@
                     const addr = base + i;
                     if (addr < ramSize) {
                         const val = (state.ram[addr] !== undefined) ? state.ram[addr].toString(16).toUpperCase().padStart(2, '0') : '00';
-                        rowBytes += `<span class="bg-white dark:bg-slate-800 px-1 py-0.5 rounded border border-slate-300 dark:border-slate-700">${val}</span> `;
+                        rowBytes += `<span data-addr="${addr}" class="bg-white dark:bg-slate-800 px-1 py-0.5 rounded border border-slate-300 dark:border-slate-700">${val}</span> `;
                     }
                 }
                 const addrHex = '0x' + base.toString(16).toUpperCase().padStart(2, '0');
@@ -1428,6 +1428,7 @@
                 }
 
                 if (state.writeMiss === 'write-allocate') {
+                    state.memoryReads++;
                     let blockData = [];
                     for (let i = 0; i < state.blockSize; i++) {
                         blockData.push(state.ram[blockStartAddr + i] || 0);
@@ -1438,6 +1439,7 @@
                     targetLine.lruCounter = state.timestamp++;
                     targetLine.fifoOrder = state.timestamp++;
                     targetLine.timestamp = Date.now();
+                    targetLine.dirty = false;
                     targetLine.data[offset] = byteVal;
                     if (state.writeHit === 'write-back') {
                         targetLine.dirty = true;
@@ -1488,9 +1490,11 @@
 
         function loadHistory() {
             const text = document.getElementById('historyText').value;
-            state.accessHistory = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+            state.accessHistory = text.split('\\n').map(l => l.trim()).filter(l => l.length > 0);
+            onSystemAction();
+            navIdx = -1;
             for (let cmd of state.accessHistory) {
-                let parts = cmd.split(/\s+/);
+                let parts = cmd.split(/\\s+/);
                 if (parts[0] === 'r' && parts[1]) {
                     document.getElementById('readAddr').value = parts[1].replace('0x','');
                     handleRead();
