@@ -50,6 +50,9 @@
             background: rgba(249, 115, 22, 0.15);
             border-left: 3px solid #f97316;
         }
+        .highlight-set-box {
+            background: rgba(249, 115, 22, 0.35) !important;
+        }
         .highlight-line {
             background: rgba(220, 38, 38, 0.15);
             border-left: 3px solid #dc2626;
@@ -538,8 +541,8 @@
         }
 
         function clearHighlights() {
-            document.querySelectorAll('.highlight-set, .highlight-line, .highlight-bit-v, .highlight-bit-d, .highlight-byte').forEach(el => {
-                el.classList.remove('highlight-set', 'highlight-line', 'highlight-bit-v', 'highlight-bit-d', 'highlight-byte');
+            document.querySelectorAll('.highlight-set, .highlight-set-box, .highlight-line, .highlight-bit-v, .highlight-bit-d, .highlight-byte').forEach(el => {
+                el.classList.remove('highlight-set', 'highlight-set-box', 'highlight-line', 'highlight-bit-v', 'highlight-bit-d', 'highlight-byte');
             });
         }
 
@@ -553,6 +556,8 @@
                     el.classList.add('highlight-set');
                 }
             });
+            const boxEls = container.querySelectorAll(`span[data-set="${index}"]`);
+            boxEls.forEach(el => el.classList.add('highlight-set-box'));
         }
 
         function highlightLine(setIdx, lineIdx) {
