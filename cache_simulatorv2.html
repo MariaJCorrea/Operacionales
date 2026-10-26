@@ -63,8 +63,13 @@
             font-weight: bold;
         }
         .highlight-byte {
-            background: rgba(16, 185, 129, 0.25);
+            background: rgba(16, 185, 129, 0.25) !important;
             border: 1px solid #10b981;
+            font-weight: bold;
+        }
+        .highlight-written {
+            background: rgba(59, 130, 246, 0.35) !important;
+            border: 1px solid #3b82f6;
             font-weight: bold;
         }
     </style>
@@ -596,6 +601,15 @@
             }
         }
 
+        function highlightWritten(setIdx, lineIdx, offset) {
+            const container = document.getElementById('cacheContainer');
+            if (!container) return;
+            const byteEl = container.querySelector(`span[data-set="${setIdx}"][data-line="${lineIdx}"][data-offset="${offset}"]`);
+            if (byteEl) {
+                byteEl.classList.add('highlight-written');
+            }
+        }
+
         function startExplain(opType) {
             if (!state.initialized) {
                 onSystemAction();
@@ -785,8 +799,12 @@
                     `;
                     renderCache();
                     renderPhysicalMemory();
-                    // Resaltar bytes en caché y en Physical Memory
-                    highlightByte(index, lineIdx, 0);
+                    // Resaltar set, bytes en caché y en Physical Memory
+                    highlightWritten(index, lineIdx, offset);
+                    const vElKeep2 = document.querySelector(`span[data-set="${index}"][data-line="${lineIdx}"]:not([data-offset])`);
+                    if (vElKeep2) vElKeep2.classList.add('highlight-bit-v');
+                    document.querySelectorAll(`div[data-set="${index}"]`).forEach(el => { if (el.classList.contains('flex')) el.classList.add('highlight-set'); });
+                    document.querySelectorAll(`span[data-set="${index}"]`).forEach(el => el.classList.add('highlight-set-box'));
                     const physContainerReadMiss = document.getElementById('physicalMemoryContainer');
                     if (physContainerReadMiss) {
                         physContainerReadMiss.querySelectorAll(`span[data-addr]`).forEach(el => {
@@ -880,7 +898,7 @@
                     const dataStr = '0x' + dataVal.toString(16).toUpperCase().padStart(2, '0');
                     consoleEl.innerText = `Read: ${addrStr}\nSplit address into TIO breakdown.\nChecking Set ${index}\nLooking for Tag ${tag}... HIT in Line ${hitLineIdx}!\nLRU statuses updated.\nData: ${dataStr}`;
                     clearHighlights();
-                    highlightByte(index, hitLineIdx, offset);
+                    highlightWritten(index, hitLineIdx, offset);
                     panel.innerHTML = `
                         <div class="space-y-1 text-slate-800 dark:text-slate-200">
                             <div></div>
@@ -889,7 +907,7 @@
                             <div class="pt-2 text-emerald-600 dark:text-emerald-400">Estado: Operación completada.</div>
                         </div>
                     `;
-                    endExplain();
+                    highlightWritten(index, hitLineIdx, offset);
                 }
             } else if (type === 'write-hit') {
                 if (step === 1) {
@@ -939,8 +957,8 @@
                         state.memoryWrites++;
                     }
                     consoleEl.innerText = `Write: ${addrStr} = ${byteStr}\nSplit address into TIO breakdown.\nChecking Set ${index}\nLooking for Tag ${tag}... HIT in Line ${hitLineIdx}!\nByte ${addrStr} updated to ${byteStr} in cache. Line marked dirty (D=1).`;
-                    highlightByte(index, hitLineIdx, offset);
                     highlightBit('d', index, hitLineIdx);
+                    highlightWritten(index, hitLineIdx, offset);
                     panel.innerHTML = `
                         <div class="space-y-1 text-slate-800 dark:text-slate-200">
                             <div></div>
@@ -1060,8 +1078,8 @@
                     consoleEl.innerText = `Write: ${addrStr} = ${byteStr}\nSplit address into TIO breakdown.\nChecking Set ${index}\nLooking for Tag ${tag}... MISS!\nInvalid Line chosen for replacement.\nBlock read into cache from memory.\nByte ${addrStr} updated to ${byteStr} in cache. Line marked dirty (D=1).`;
                     renderCache();
                     renderPhysicalMemory();
-                    highlightByte(index, lineIdx, offset);
                     highlightBit('d', index, lineIdx);
+                    highlightWritten(index, lineIdx, offset);
                     panel.innerHTML = `
                         <div class="space-y-1 text-slate-800 dark:text-slate-200">
                             <div></div>
@@ -1144,8 +1162,6 @@
                     endExplain();
                 }
             }
-
-            renderCache();
         }
 
         // Interceptar el botón actionBtn cuando está en modo 'Next'
