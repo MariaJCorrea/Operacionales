@@ -1329,9 +1329,9 @@
         }
 
         function updateStatsDisplay(tag, index, offset) {
-            document.getElementById('resTag').innerText = tag !== null ? tag.toString(16).toUpperCase().padStart(state.bitsTag > 4 ? 2 : 1, '0') : '-';
-            document.getElementById('resIndex').innerText = index !== null ? index.toString(16).toUpperCase() : '-';
-            document.getElementById('resOffset').innerText = offset !== null ? offset.toString(16).toUpperCase() : '-';
+            document.getElementById('resTag').innerText = tag !== null ? tag.toString(2).padStart(state.bitsTag, '0') : '-';
+            document.getElementById('resIndex').innerText = index !== null ? index.toString(2).padStart(state.bitsIndex, '0') : '-';
+            document.getElementById('resOffset').innerText = offset !== null ? offset.toString(2).padStart(state.bitsOffset, '0') : '-';
             document.getElementById('statHits').innerText = state.hits;
             document.getElementById('statMisses').innerText = state.misses;
         }
