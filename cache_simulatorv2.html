@@ -249,7 +249,7 @@
             <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs flex flex-col justify-between">
                 <div>
                     <h2 class="font-bold text-base pb-2 mb-3 border-b border-slate-100 dark:border-slate-800 text-slate-900 dark:text-white">History:</h2>
-                    <textarea id="historyText" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded p-2 text-xs font-mono h-32 outline-none resize-none">> </textarea>
+                    <textarea id="historyText" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded p-2 text-xs font-mono h-32 outline-none resize-none">></textarea>
                 </div>
                 <div class="flex items-center space-x-2 pt-2">
                     <button onclick="loadHistory()" class="bg-slate-200 dark:bg-slate-800 border border-slate-400 px-3 py-1 rounded text-xs">Load</button>
@@ -358,7 +358,12 @@
             explainTargetLineIdx: null,
             explainTargetWasInvalid: null,
             explainTargetLine: null,
-            explainMissType: null
+            explainMissType: null,
+            // Historial con snapshots
+            historyBaseText: [],
+            historyResults: [],
+            historySnapshots: [],
+            historyViewPos: -1
         };
 
         const presetBytes = [
@@ -466,6 +471,13 @@
             state.memoryWrites = 0;
             state.timestamp = 0;
             state.initialized = true;
+
+            // Resetear historial de snapshots
+            state.historyBaseText = [];
+            state.historyResults = [];
+            state.historySnapshots = [];
+            state.historyViewPos = -1;
+            renderHistoryView();
 
             const explainChecked = document.getElementById('explainCheck').checked;
             if (explainChecked) {
@@ -692,6 +704,23 @@
         function endExplain() {
             state.explainMode = false;
             state.explainOpStep = 0;
+            
+            // Guardar snapshot del comando que se acaba de ejecutar en el historial navegable
+            const wasHit = state.explainOpType && state.explainOpType.includes('hit');
+            let cmd = '';
+            if (state.explainOpType) {
+                const addrStr = '0x' + state.explainOpAddr.toString(16).toUpperCase();
+                if (state.explainOpType.startsWith('read')) {
+                    cmd = `r ${addrStr}`;
+                } else if (state.explainOpType.startsWith('write')) {
+                    const byteStr = state.explainOpByte !== null ? state.explainOpByte.toString(16).toUpperCase().padStart(2, '0') : '00';
+                    cmd = `w ${addrStr} 0x${byteStr}`;
+                }
+            }
+            if (cmd) {
+                saveHistorySnapshot(cmd, wasHit);
+            }
+            
             state.explainOpType = null;
             state.explainOpAddr = null;
             state.explainOpByte = null;
@@ -750,7 +779,6 @@
                             <div class="pt-2 text-sm">Historia: &gt; R(${addrStr}) = ?</div>
                         </div>
                     `;
-                    document.getElementById('historyText').value = (document.getElementById('historyText').value || '') + `\n> R(${addrStr}) = ?`;
                 } else if (step === 2) {
                     consoleEl.innerText = `Read: ${addrStr}\nSplit address into TIO breakdown.`;
                     panel.innerHTML = `
@@ -778,7 +806,6 @@
                     } else if (missTypeClass === 'Conflict') {
                         state.conflictMisses++;
                     }
-                    document.getElementById('historyText').value = (document.getElementById('historyText').value || '').replace(/> R\(.*\) = \?/g, `> R(${addrStr}) = M`);
                     consoleEl.innerText = `Read: ${addrStr}\nSplit address into TIO breakdown.\nChecking Set ${index}\nLooking for Tag ${tag}... MISS!`;
                     panel.innerHTML = `
                         <div class="space-y-1 text-slate-800 dark:text-slate-200">
@@ -878,7 +905,6 @@
                             <div class="pt-2 text-sm">Historia: &gt; R(${addrStr}) = ?</div>
                         </div>
                     `;
-                    document.getElementById('historyText').value = (document.getElementById('historyText').value || '') + `\n> R(${addrStr}) = ?`;
                 }
                 // PASO 2: División TIO Confirmada
                 else if (step === 2) {
@@ -904,7 +930,6 @@
                 // PASO 4: Detección de Cache Hit
                 else if (step === 4) {
                     state.hits++;
-                    document.getElementById('historyText').value = (document.getElementById('historyText').value || '').replace(/> R\(.*\) = \?/g, `> R(${addrStr}) = H`);
                     consoleEl.innerText = `Read: ${addrStr}\nSplit address into TIO breakdown.\nChecking Set ${index}\nLooking for Tag ${tag}... HIT in Line ${hitLineIdx}!`;
                     panel.innerHTML = `
                         <div class="space-y-1 text-slate-800 dark:text-slate-200">
@@ -954,7 +979,6 @@
                             <div class="pt-2 text-sm">Historia: &gt; W(${addrStr}) = ?</div>
                         </div>
                     `;
-                    document.getElementById('historyText').value = (document.getElementById('historyText').value || '') + `\n> W(${addrStr}) = ?`;
                 } else if (step === 2) {
                     consoleEl.innerText = `Write: ${addrStr} = ${byteStr}\nSplit address into TIO breakdown.`;
                     panel.innerHTML = `
@@ -974,7 +998,6 @@
                     `;
                 } else if (step === 4) {
                     state.hits++;
-                    document.getElementById('historyText').value = (document.getElementById('historyText').value || '').replace(/> W\(.*\) = \?/g, `> W(${addrStr}) = H`);
                     consoleEl.innerText = `Write: ${addrStr} = ${byteStr}\nSplit address into TIO breakdown.\nChecking Set ${index}\nLooking for Tag ${tag}... HIT in Line ${hitLineIdx}!`;
                     panel.innerHTML = `
                         <div class="space-y-1 text-slate-800 dark:text-slate-200">
@@ -1028,7 +1051,6 @@
                             <div class="pt-2 text-sm">Historia: &gt; W(${addrStr}) = ?</div>
                         </div>
                     `;
-                    document.getElementById('historyText').value = (document.getElementById('historyText').value || '') + `\n> W(${addrStr}) = ?`;
                 } else if (step === 2) {
                     consoleEl.innerText = `Write: ${addrStr} = ${byteStr}\nSplit address into TIO breakdown.`;
                     panel.innerHTML = `
@@ -1143,7 +1165,6 @@
                             <div class="pt-2 text-sm">Historia: &gt; W(${addrStr}) = ?</div>
                         </div>
                     `;
-                    document.getElementById('historyText').value = (document.getElementById('historyText').value || '') + `\n> W(${addrStr}) = ?`;
                 } else if (step === 2) {
                     consoleEl.innerText = `Write: ${addrStr} = ${byteStr}\nSplit address into TIO breakdown.`;
                     panel.innerHTML = `
@@ -1163,7 +1184,6 @@
                     `;
                 } else if (step === 4) {
                     state.misses++;
-                    document.getElementById('historyText').value = (document.getElementById('historyText').value || '').replace(/> W\(.*\) = \?/g, `> W(${addrStr}) = M`);
                     consoleEl.innerText = `Write: ${addrStr} = ${byteStr}\nSplit address into TIO breakdown.\nChecking Set ${index}\nLooking for Tag ${tag}... MISS!`;
                     panel.innerHTML = `
                         <div class="space-y-1 text-slate-800 dark:text-slate-200">
@@ -1378,12 +1398,14 @@
                 }
             }
 
+            let wasHit = false;
             if (hitLine) {
                 state.hits++;
                 if (state.replacement === 'lru') {
                     hitLine.lruCounter = state.timestamp++;
                 }
                 document.getElementById('simulationConsole').innerText = `Cache HIT for address 0x${addr.toString(16).toUpperCase()}`;
+                wasHit = true;
             } else {
                 state.misses++;
                 state.memoryReads++;
@@ -1418,7 +1440,9 @@
             }
 
             renderCache();
-            addToHistory(`r 0x${addr.toString(16).toUpperCase()}`);
+            // Guardar snapshot solo en modo normal (no Explain)
+            const cmd = `r 0x${addr.toString(16).toUpperCase()}`;
+            saveHistorySnapshot(cmd, wasHit);
         }
 
         function handleWrite() {
@@ -1452,6 +1476,7 @@
                 }
             }
 
+            let wasHit = false;
             if (hitLine) {
                 state.hits++;
                 if (state.replacement === 'lru') {
@@ -1465,6 +1490,7 @@
                     state.memoryWrites++;
                 }
                 document.getElementById('simulationConsole').innerText = `Write HIT at 0x${addr.toString(16).toUpperCase()}`;
+                wasHit = true;
             } else {
                 state.misses++;
 
@@ -1510,7 +1536,9 @@
 
             renderCache();
             renderPhysicalMemory();
-            addToHistory(`w 0x${addr.toString(16).toUpperCase()} 0x${byteVal.toString(16).toUpperCase().padStart(2, '0')}`);
+            // Guardar snapshot solo en modo normal (no Explain)
+            const cmd = `w 0x${addr.toString(16).toUpperCase()} 0x${byteVal.toString(16).toUpperCase().padStart(2, '0')}`;
+            saveHistorySnapshot(cmd, wasHit);
         }
 
         function handleFlush() {
@@ -1537,17 +1565,126 @@
             document.getElementById('simulationConsole').innerText = 'Cache flushed.';
         }
 
+        // =====================================================================
+        // HISTORIAL CON SNAPSHOTS - Nuevas funciones
+        // =====================================================================
+
+        function cloneCacheSnapshot() {
+            // Copia profunda de state.cache: cada línea se clona con data[]
+            return state.cache.map(set => {
+                return set.map(line => {
+                    return {
+                        valid: line.valid,
+                        dirty: line.dirty,
+                        tag: line.tag,
+                        data: line.data.slice(), // clonar array de bytes
+                        lruCounter: line.lruCounter,
+                        fifoOrder: line.fifoOrder,
+                        timestamp: line.timestamp
+                    };
+                });
+            });
+        }
+
+        function restoreCacheSnapshot(snap) {
+            // Restaura state.cache desde una snapshot (deep copy inversa)
+            state.cache = snap.map(set => {
+                return set.map(line => {
+                    return {
+                        valid: line.valid,
+                        dirty: line.dirty,
+                        tag: line.tag,
+                        data: line.data.slice(),
+                        lruCounter: line.lruCounter,
+                        fifoOrder: line.fifoOrder,
+                        timestamp: line.timestamp
+                    };
+                });
+            });
+        }
+
+        function captureCounters() {
+            return {
+                hits: state.hits,
+                misses: state.misses,
+                compulsoryMisses: state.compulsoryMisses,
+                conflictMisses: state.conflictMisses,
+                memoryReads: state.memoryReads,
+                memoryWrites: state.memoryWrites
+            };
+        }
+
+        function restoreCounters(c) {
+            state.hits = c.hits;
+            state.misses = c.misses;
+            state.compulsoryMisses = c.compulsoryMisses;
+            state.conflictMisses = c.conflictMisses;
+            state.memoryReads = c.memoryReads;
+            state.memoryWrites = c.memoryWrites;
+        }
+
+        function saveHistorySnapshot(cmd, isHit) {
+            // Guardar snapshot del estado actual (después de ejecutar el comando)
+            const snap = {
+                cache: cloneCacheSnapshot(),
+                counters: captureCounters()
+            };
+            state.historySnapshots.push(snap);
+            state.historyBaseText.push(cmd);
+            state.historyResults.push(isHit ? 'H' : 'M');
+            state.historyViewPos = state.historyBaseText.length; // ">" justo después del último comando
+            renderHistoryView();
+        }
+
+        function renderHistoryView() {
+            // Construir el textarea desde historyBaseText, con un único ">" móvil
+            let lines = [];
+            for (let i = 0; i < state.historyBaseText.length; i++) {
+                const cmd = state.historyBaseText[i];
+                const result = (i < state.historyViewPos) ? state.historyResults[i] : '?';
+                lines.push(`${cmd} = ${result}`);
+            }
+            // Añadir una sola línea con ">" al final
+            lines.push('>');
+            document.getElementById('historyText').value = lines.join('\n');
+        }
+
         function addToHistory(cmd) {
+            // Mantenido para compatibilidad, pero ya no se usa directamente
             state.accessHistory.push(cmd);
-            document.getElementById('historyText').value = state.accessHistory.join('\n');
         }
 
         function loadHistory() {
             const text = document.getElementById('historyText').value;
-            state.accessHistory = text.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0 && !l.startsWith('>'));
+            // Parsear textarea: ignorar líneas que empiezan con '>', y de cada línea válida
+            // extraer solo la parte del comando (antes del '=').
+            const commands = text.split(/\r?\n/)
+                .map(l => l.trim())
+                .filter(l => l.length > 0 && !l.startsWith('>'))
+                .map(l => {
+                    // Extraer solo la parte del comando (antes del '=' si existe)
+                    const eqIdx = l.indexOf('=');
+                    return (eqIdx > 0) ? l.substring(0, eqIdx).trim() : l;
+                })
+                .filter(l => /^(r|w)\s/.test(l));
+
+            // Limpiar historial
+            state.historyBaseText = [];
+            state.historyResults = [];
+            state.historySnapshots = [];
+            state.historyViewPos = -1;
+
+            // Resetear sistema
             onSystemAction();
-            navIdx = -1;
-            for (let cmd of state.accessHistory) {
+
+            // onSystemAction ya limpia el historial, pero por si acaso volvemos a limpiar
+            state.historyBaseText = [];
+            state.historyResults = [];
+            state.historySnapshots = [];
+            state.historyViewPos = -1;
+
+            // Ejecutar cada comando por el camino normal para que se generen snapshots automáticamente
+            for (let cmd of commands) {
                 let parts = cmd.split(/\s+/);
                 if (parts[0] === 'r' && parts[1]) {
                     document.getElementById('readAddr').value = parts[1].replace('0x','');
@@ -1558,38 +1695,57 @@
                     handleWrite();
                 }
             }
-            if (state.accessHistory.length > 0) {
-                navIdx = state.accessHistory.length - 1;
+
+            // Tras reproducir toda la traza, dejar historyViewPos en la posición que corresponda
+            // para que el último comando (punto donde se queda) muestre '?'.
+            // saveHistorySnapshot ya estableció historyViewPos = historyBaseText.length,
+            // pero queremos que el último comando sea '?', así que lo restamos en 1.
+            if (state.historyBaseText.length > 0) {
+                state.historyViewPos = state.historyBaseText.length - 1;
             } else {
-                navIdx = -1;
+                state.historyViewPos = -1;
             }
+            renderHistoryView();
         }
 
-        let navIdx = -1;
         function navPrev() {
-            if (state.accessHistory.length === 0) return;
-            if (navIdx === -1) navIdx = state.accessHistory.length - 1;
-            else if (navIdx > 0) navIdx--;
-            executeCmd(state.accessHistory[navIdx]);
+            if (state.historyBaseText.length === 0) return;
+            if (state.historyViewPos <= 0) return; // No hay hacia atrás
+            state.historyViewPos--;
+            // Restaurar snapshot en la posición correspondiente.
+            // historySnapshots[i] contiene el estado DESPUÉS del comando i.
+            // Para mostrar el estado DESPUÉS del comando historyViewPos, usamos snapshot[historyViewPos].
+            // Pero al navegar hacia atrás, historyViewPos apunta al comando que vamos a mostrar como '?'.
+            // El estado del sistema debe ser el del snapshot[historyViewPos] (después de ese comando)
+            // para que al pulsar Next, mostremos el comando siguiente.
+            // Sin embargo, si historyViewPos es el índice del comando que se muestra como '?',
+            // el estado del sistema debe ser el del snapshot[historyViewPos] (después de ejecutar ese comando).
+            // Esto es correcto: al navegar hacia atrás, queremos ver el estado después del comando historyViewPos,
+            // y el comando historyViewPos+1 se mostrará como '?'.
+            if (state.historySnapshots[state.historyViewPos]) {
+                restoreCacheSnapshot(state.historySnapshots[state.historyViewPos].cache);
+                restoreCounters(state.historySnapshots[state.historyViewPos].counters);
+                renderCache();
+                renderPhysicalMemory();
+                updateStatsDisplay(null, null, null);
+            }
+            renderHistoryView();
         }
 
         function navNext() {
-            if (state.accessHistory.length === 0) return;
-            if (navIdx < state.accessHistory.length - 1) navIdx++;
-            else navIdx = 0;
-            executeCmd(state.accessHistory[navIdx]);
-        }
-
-        function executeCmd(cmd) {
-            let parts = cmd.split(/\s+/);
-            if (parts[0] === 'r') {
-                document.getElementById('readAddr').value = parts[1].replace('0x','');
-                handleRead();
-            } else if (parts[0] === 'w') {
-                document.getElementById('writeAddr').value = parts[1].replace('0x','');
-                document.getElementById('writeByte').value = parts[2].replace('0x','');
-                handleWrite();
+            if (state.historyBaseText.length === 0) return;
+            // El límite derecho es historyBaseText.length - 1 (último comando como '?')
+            if (state.historyViewPos >= state.historyBaseText.length - 1) return;
+            state.historyViewPos++;
+            // Restaurar snapshot en la posición correspondiente (snapshot[historyViewPos])
+            if (state.historySnapshots[state.historyViewPos]) {
+                restoreCacheSnapshot(state.historySnapshots[state.historyViewPos].cache);
+                restoreCounters(state.historySnapshots[state.historyViewPos].counters);
+                renderCache();
+                renderPhysicalMemory();
+                updateStatsDisplay(null, null, null);
             }
+            renderHistoryView();
         }
 
     </script>
