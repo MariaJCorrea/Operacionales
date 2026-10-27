@@ -1251,6 +1251,12 @@
 
             let html = '';
             for (let s = 0; s < state.numSets; s++) {
+                // Iniciar un contenedor con borde para el set
+                html += `<div class="border border-slate-400 dark:border-slate-600 rounded p-2 mb-3">`;
+                // Nombre del set centrado, una sola vez
+                html += `<div class="text-amber-800 dark:text-amber-500 font-semibold text-center mb-1">Set ${s}</div>`;
+                
+                // Líneas del set
                 for (let l = 0; l < state.linesPerSet; l++) {
                     const line = state.cache[s][l];
                     const vStr = line.valid ? '1' : '0';
@@ -1265,7 +1271,6 @@
 
                     html += `
                         <div class="flex items-center space-x-2 py-1" data-set="${s}" data-line="${l}">
-                            <span class="text-amber-800 dark:text-amber-500 font-semibold w-12">Set ${s}</span>
                             <span data-set="${s}" data-line="${l}" class="bg-slate-300 dark:bg-slate-800 px-1.5 py-0.5 rounded text-center">${vStr}</span>
                             <span data-set="${s}" data-line="${l}" class="bg-slate-300 dark:bg-slate-800 px-1.5 py-0.5 rounded text-center">${dStr}</span>
                             <span data-set="${s}" data-line="${l}" class="bg-slate-300 dark:bg-slate-800 px-1.5 py-0.5 rounded text-center w-8">${tStr}</span>
@@ -1273,6 +1278,7 @@
                         </div>
                     `;
                 }
+                html += `</div>`;
             }
             container.innerHTML = html;
         }
