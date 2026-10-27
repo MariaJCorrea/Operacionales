@@ -179,7 +179,7 @@
                 </div>
 
                 <div class="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                    <button id="actionBtn" onclick="onSystemAction()" class="bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-400 px-4 py-1.5 rounded text-xs font-semibold shadow-xs transition">
+                    <button id="actionBtn" class="bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-400 px-4 py-1.5 rounded text-xs font-semibold shadow-xs transition">
                         Generate System
                     </button>
                     <label class="flex items-center space-x-1.5 text-xs cursor-pointer">
@@ -353,7 +353,12 @@
             explainOpStep: 0,
             explainOpType: null,
             explainOpAddr: null,
-            explainOpByte: null
+            explainOpByte: null,
+            explainTargetSet: null,
+            explainTargetLineIdx: null,
+            explainTargetWasInvalid: null,
+            explainTargetLine: null,
+            explainMissType: null
         };
 
         const presetBytes = [
@@ -549,6 +554,12 @@
             document.querySelectorAll('.highlight-set, .highlight-set-box, .highlight-line, .highlight-bit-v, .highlight-bit-d, .highlight-byte').forEach(el => {
                 el.classList.remove('highlight-set', 'highlight-set-box', 'highlight-line', 'highlight-bit-v', 'highlight-bit-d', 'highlight-byte');
             });
+            const physContainer = document.getElementById('physicalMemoryContainer');
+            if (physContainer) {
+                physContainer.querySelectorAll('.highlight-byte').forEach(el => {
+                    el.classList.remove('highlight-byte');
+                });
+            }
         }
 
         function highlightSet(index) {
@@ -581,13 +592,14 @@
             clearHighlights();
             const container = document.getElementById('cacheContainer');
             if (!container) return;
-            const vEl = container.querySelector(`span[data-set="${setIdx}"][data-line="${lineIdx}"]:not([data-offset])`);
-            if (!vEl) return;
+            const bitSpans = Array.from(container.querySelectorAll(`span[data-set="${setIdx}"][data-line="${lineIdx}"]:not([data-offset])`));
+            if (bitSpans.length === 0) return;
             if (type === 'v') {
-                vEl.classList.add('highlight-bit-v');
+                bitSpans[0].classList.add('highlight-bit-v');
             } else if (type === 'd') {
-                const dEl = container.querySelectorAll(`span[data-set="${setIdx}"][data-line="${lineIdx}"]:not([data-offset])`)[1];
-                if (dEl) dEl.classList.add('highlight-bit-d');
+                if (bitSpans[1]) {
+                    bitSpans[1].classList.add('highlight-bit-d');
+                }
             }
         }
 
@@ -665,6 +677,11 @@
             state.explainOpType = explainOpType;
             state.explainOpAddr = addr;
             state.explainOpByte = byteVal;
+            state.explainTargetSet = null;
+            state.explainTargetLineIdx = null;
+            state.explainTargetWasInvalid = null;
+            state.explainTargetLine = null;
+            state.explainMissType = null;
 
             lockAccessInputs(true);
             document.getElementById('nextExplainBtn').style.display = 'inline-block';
@@ -678,6 +695,11 @@
             state.explainOpType = null;
             state.explainOpAddr = null;
             state.explainOpByte = null;
+            state.explainTargetSet = null;
+            state.explainTargetLineIdx = null;
+            state.explainTargetWasInvalid = null;
+            state.explainTargetLine = null;
+            state.explainMissType = null;
 
             lockAccessInputs(false);
             clearHighlights();
@@ -748,19 +770,32 @@
                     `;
                 } else if (step === 4) {
                     state.misses++;
+                    const rep4 = getReplacementLine(setLines, index);
+                    const missTypeClass = classifyMiss(setLines, blockStartAddr, rep4.wasInvalid);
+                    state.explainMissType = missTypeClass;
+                    if (missTypeClass === 'Compulsory') {
+                        state.compulsoryMisses++;
+                    } else if (missTypeClass === 'Conflict') {
+                        state.conflictMisses++;
+                    }
                     document.getElementById('historyText').value = (document.getElementById('historyText').value || '').replace(/> R\(.*\) = \?/g, `> R(${addrStr}) = M`);
                     consoleEl.innerText = `Read: ${addrStr}\nSplit address into TIO breakdown.\nChecking Set ${index}\nLooking for Tag ${tag}... MISS!`;
                     panel.innerHTML = `
                         <div class="space-y-1 text-slate-800 dark:text-slate-200">
                             <div></div>
                             <div class="pt-2 text-sm">Historia: &gt; R(${addrStr}) = M</div>
-                            <div class="pt-2 text-red-600 dark:text-red-400">Tipo: Miss</div>
+                            <div class="pt-2 text-red-600 dark:text-red-400">Tipo: ${missTypeClass}</div>
                         </div>
                     `;
                     updateStatsDisplay(tag, index, offset);
                 } else if (step === 5) {
-                    const { line: targetLine, wasInvalid } = getReplacementLine(setLines, index);
+                    const replacementResult = getReplacementLine(setLines, index);
+                    const targetLine = replacementResult.line;
                     const lineIdx = setLines.indexOf(targetLine);
+                    state.explainTargetSet = index;
+                    state.explainTargetLineIdx = lineIdx;
+                    state.explainTargetWasInvalid = replacementResult.wasInvalid;
+                    state.explainTargetLine = targetLine;
                     consoleEl.innerText = `Read: ${addrStr}\nSplit address into TIO breakdown.\nChecking Set ${index}\nLooking for Tag ${tag}... MISS!\nInvalid Line ${lineIdx} chosen for replacement.`;
                     highlightBit('v', index, lineIdx);
                     panel.innerHTML = `
@@ -770,12 +805,14 @@
                         </div>
                     `;
                 } else if (step === 6) {
-                    const { line: targetLine, wasInvalid } = getReplacementLine(setLines, index);
-                    const lineIdx = setLines.indexOf(targetLine);
+                    const targetLine = state.explainTargetLine || setLines[state.explainTargetLineIdx];
+                    const lineIdx = state.explainTargetLineIdx !== null ? state.explainTargetLineIdx : setLines.indexOf(targetLine);
+                    const wasInvalid = state.explainTargetWasInvalid;
                     const baseAddr = blockStartAddr;
                     // Write-back si la línea es dirty
-                    if (!wasInvalid && targetLine.dirty) {
+                    if (wasInvalid !== true && targetLine && targetLine.dirty) {
                         writeBackLine(targetLine, index);
+                        renderPhysicalMemory();
                     }
                     // Cargar bloque desde RAM
                     let blockData = [];
@@ -815,13 +852,13 @@
                         });
                     }
                 } else if (step === 7) {
-                    const { line: targetLine } = getReplacementLine(setLines, index);
-                    const lineIdx = setLines.indexOf(targetLine);
-                    if (state.replacement === 'lru') {
+                    const targetLine = state.explainTargetLine || setLines[state.explainTargetLineIdx];
+                    const lineIdx = state.explainTargetLineIdx !== null ? state.explainTargetLineIdx : (targetLine ? setLines.indexOf(targetLine) : -1);
+                    if (state.replacement === 'lru' && targetLine) {
                         targetLine.lruCounter = state.timestamp++;
                     }
                     const baseAddr = blockStartAddr;
-                    consoleEl.innerText = `Read: ${addrStr}\\nSplit address into TIO breakdown.\\nChecking Set ${index}\\nLooking for Tag ${tag}... MISS!\\nInvalid Line ${lineIdx} chosen for replacement.\\nBlock read into cache from memory at address 0x${baseAddr.toString(16).toUpperCase()}.\\nLRU statuses updated.`;
+                    consoleEl.innerText = `Read: ${addrStr}\nSplit address into TIO breakdown.\nChecking Set ${index}\nLooking for Tag ${tag}... MISS!\nInvalid Line ${lineIdx} chosen for replacement.\nBlock read into cache from memory at address 0x${baseAddr.toString(16).toUpperCase()}\nLRU statuses updated.`;
                     panel.innerHTML = `
                         <div class="space-y-1 text-slate-800 dark:text-slate-200">
                             <div></div>
@@ -907,7 +944,6 @@
                             <div class="pt-2 text-emerald-600 dark:text-emerald-400">Estado: Operación completada.</div>
                         </div>
                     `;
-                    highlightWritten(index, hitLineIdx, offset);
                 }
             } else if (type === 'write-hit') {
                 if (step === 1) {
@@ -952,12 +988,14 @@
                     hitLine.data[offset] = byteVal;
                     if (state.writeHit === 'write-back') {
                         hitLine.dirty = true;
+                        consoleEl.innerText = `Write: ${addrStr} = ${byteStr}\nSplit address into TIO breakdown.\nChecking Set ${index}\nLooking for Tag ${tag}... HIT in Line ${hitLineIdx}!\nByte ${addrStr} updated to ${byteStr} in cache. Line marked dirty (D=1).`;
+                        highlightBit('d', index, hitLineIdx);
                     } else {
                         state.ram[addr] = byteVal;
                         state.memoryWrites++;
+                        consoleEl.innerText = `Write: ${addrStr} = ${byteStr}\nSplit address into TIO breakdown.\nChecking Set ${index}\nLooking for Tag ${tag}... HIT in Line ${hitLineIdx}!\nByte ${addrStr} updated to ${byteStr} in cache and written to main memory (Write-through).`;
+                        renderPhysicalMemory();
                     }
-                    consoleEl.innerText = `Write: ${addrStr} = ${byteStr}\nSplit address into TIO breakdown.\nChecking Set ${index}\nLooking for Tag ${tag}... HIT in Line ${hitLineIdx}!\nByte ${addrStr} updated to ${byteStr} in cache. Line marked dirty (D=1).`;
-                    highlightBit('d', index, hitLineIdx);
                     highlightWritten(index, hitLineIdx, offset);
                     panel.innerHTML = `
                         <div class="space-y-1 text-slate-800 dark:text-slate-200">
@@ -1009,19 +1047,13 @@
                         </div>
                     `;
                 } else if (step === 4) {
-                    state.misses++;
-                    document.getElementById('historyText').value = (document.getElementById('historyText').value || '').replace(/> W\(.*\) = \?/g, `> W(${addrStr}) = M`);
-                    consoleEl.innerText = `Write: ${addrStr} = ${byteStr}\nSplit address into TIO breakdown.\nChecking Set ${index}\nLooking for Tag ${tag}... MISS!`;
-                    panel.innerHTML = `
-                        <div class="space-y-1 text-slate-800 dark:text-slate-200">
-                            <div></div>
-                            <div class="pt-2 text-sm">Historia: &gt; W(${addrStr}) = M</div>
-                        </div>
-                    `;
-                    updateStatsDisplay(tag, index, offset);
-                } else if (step === 5) {
-                    const { line: targetLine, wasInvalid } = getReplacementLine(setLines, index);
+                    const replacementResult = getReplacementLine(setLines, index);
+                    const targetLine = replacementResult.line;
                     const lineIdx = setLines.indexOf(targetLine);
+                    state.explainTargetSet = index;
+                    state.explainTargetLineIdx = lineIdx;
+                    state.explainTargetWasInvalid = replacementResult.wasInvalid;
+                    state.explainTargetLine = targetLine;
                     consoleEl.innerText = `Write: ${addrStr} = ${byteStr}\nSplit address into TIO breakdown.\nChecking Set ${index}\nLooking for Tag ${tag}... MISS!\nInvalid Line ${lineIdx} chosen for replacement.`;
                     highlightLine(index, lineIdx);
                     panel.innerHTML = `
@@ -1031,12 +1063,14 @@
                         </div>
                     `;
                 } else if (step === 6) {
-                    const { line: targetLine, wasInvalid } = getReplacementLine(setLines, index);
-                    const lineIdx = setLines.indexOf(targetLine);
+                    const targetLine = state.explainTargetLine || setLines[state.explainTargetLineIdx];
+                    const lineIdx = state.explainTargetLineIdx !== null ? state.explainTargetLineIdx : setLines.indexOf(targetLine);
+                    const wasInvalid = state.explainTargetWasInvalid;
                     const baseAddr = blockStartAddr;
                     // Write-back si la línea es dirty
-                    if (!wasInvalid && targetLine.dirty) {
+                    if (wasInvalid !== true && targetLine && targetLine.dirty) {
                         writeBackLine(targetLine, index);
+                        renderPhysicalMemory();
                     }
                     // Cargar bloque desde RAM (Write Allocate)
                     let blockData = [];
@@ -1060,7 +1094,7 @@
                     `;
                     renderCache();
                     renderPhysicalMemory();
-                    highlightByte(index, lineIdx, 0);
+                    highlightByte(index, lineIdx, offset);
                     const physContainer2 = document.getElementById('physicalMemoryContainer');
                     if (physContainer2) {
                         physContainer2.querySelectorAll(`span[data-addr]`).forEach(el => {
@@ -1071,11 +1105,11 @@
                         });
                     }
                 } else if (step === 7) {
-                    const targetLine = setLines.find(l => l.valid && l.tag === tag);
-                    const lineIdx = setLines.indexOf(targetLine);
+                    const targetLine = state.explainTargetLine || setLines[state.explainTargetLineIdx];
+                    const lineIdx = state.explainTargetLineIdx !== null ? state.explainTargetLineIdx : setLines.indexOf(targetLine);
                     targetLine.data[offset] = byteVal;
                     targetLine.dirty = true;
-                    consoleEl.innerText = `Write: ${addrStr} = ${byteStr}\nSplit address into TIO breakdown.\nChecking Set ${index}\nLooking for Tag ${tag}... MISS!\nInvalid Line chosen for replacement.\nBlock read into cache from memory.\nByte ${addrStr} updated to ${byteStr} in cache. Line marked dirty (D=1).`;
+                    consoleEl.innerText = `Write: ${addrStr} = ${byteStr}\nSplit address into TIO breakdown.\nChecking Set ${index}\nLooking for Tag ${tag}... MISS!\nInvalid Line ${lineIdx} chosen for replacement.\nBlock read into cache from memory at address 0x${baseAddr.toString(16).toUpperCase()}.\nByte ${addrStr} updated to ${byteStr} in cache. Line marked dirty (D=1).`;
                     renderCache();
                     renderPhysicalMemory();
                     highlightBit('d', index, lineIdx);
@@ -1087,16 +1121,15 @@
                         </div>
                     `;
                 } else if (step === 8) {
-                    if (state.replacement === 'lru') {
-                        const tl = setLines.find(l => l.valid && l.tag === tag);
-                        tl.lruCounter = state.timestamp++;
+                    if (state.replacement === 'lru' && targetLine) {
+                        targetLine.lruCounter = state.timestamp++;
                     }
-                    consoleEl.innerText = `Write: ${addrStr} = ${byteStr}\nSplit address into TIO breakdown.\nChecking Set ${index}\nLooking for Tag ${tag}... MISS!\nInvalid Line chosen for replacement.\nBlock read into cache from memory.\nByte ${addrStr} updated to ${byteStr} in cache. Line marked dirty (D=1).\nLRU statuses updated.`;
+                    consoleEl.innerText = `Write: ${addrStr} = ${byteStr}\nSplit address into TIO breakdown.\nChecking Set ${index}\nLooking for Tag ${tag}... MISS!\nInvalid Line ${lineIdx} chosen for replacement.\nBlock read into cache from memory at address 0x${baseAddr.toString(16).toUpperCase()}.\nByte ${addrStr} updated to ${byteStr} in cache. Line marked dirty (D=1).\nLRU statuses updated.`;
                     panel.innerHTML = `
                         <div class="space-y-1 text-slate-800 dark:text-slate-200">
                             <div></div>
                             <div class="pt-2 text-sm">Historia: &gt; W(${addrStr}) = M</div>
-                            <div class="pt-2 text-emerald-600 dark:text-emerald-400">Estado: Bloque asignado con modificación, D=1. Explicación concluida.</div>
+                            <div class="pt-2 text-emerald-600 dark:text-emerald-400">Estado: Bloque assigned with modification, D=1. Explicación concluida.</div>
                         </div>
                     `;
                     endExplain();
@@ -1511,11 +1544,11 @@
 
         function loadHistory() {
             const text = document.getElementById('historyText').value;
-            state.accessHistory = text.split('\\n').map(l => l.trim()).filter(l => l.length > 0);
+            state.accessHistory = text.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0 && !l.startsWith('>'));
             onSystemAction();
             navIdx = -1;
             for (let cmd of state.accessHistory) {
-                let parts = cmd.split(/\\s+/);
+                let parts = cmd.split(/\s+/);
                 if (parts[0] === 'r' && parts[1]) {
                     document.getElementById('readAddr').value = parts[1].replace('0x','');
                     handleRead();
@@ -1524,6 +1557,11 @@
                     document.getElementById('writeByte').value = parts[2].replace('0x','');
                     handleWrite();
                 }
+            }
+            if (state.accessHistory.length > 0) {
+                navIdx = state.accessHistory.length - 1;
+            } else {
+                navIdx = -1;
             }
         }
 
@@ -1554,9 +1592,6 @@
             }
         }
 
-        window.onload = function() {
-            onSystemAction();
-        }
     </script>
 </body>
 </html>
