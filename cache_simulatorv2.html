@@ -249,7 +249,7 @@
             <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs flex flex-col justify-between">
                 <div>
                     <h2 class="font-bold text-base pb-2 mb-3 border-b border-slate-100 dark:border-slate-800 text-slate-900 dark:text-white">History:</h2>
-                    <textarea id="historyText" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded p-2 text-xs font-mono h-32 outline-none resize-none">></textarea>
+                    <textarea id="historyText" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded p-2 text-xs font-mono h-48 outline-none resize-none">></textarea>
                 </div>
                 <div class="flex items-center space-x-2 pt-2">
                     <button onclick="loadHistory()" class="bg-slate-200 dark:bg-slate-800 border border-slate-400 px-3 py-1 rounded text-xs">Load</button>
@@ -282,7 +282,7 @@
                             <span class="pl-2">Cache Data</span>
                         </div>
                     </div>
-                    <div id="cacheContainer" class="space-y-2 font-mono text-xs">
+                    <div id="cacheContainer" class="space-y-2 font-mono text-xs max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
                         <div class="text-slate-500 italic">Caché no generada.</div>
                     </div>
                 </div>
@@ -1266,7 +1266,13 @@
                     let dataCells = '';
                     for (let b = 0; b < state.blockSize; b++) {
                         const val = line.valid ? line.data[b].toString(16).toUpperCase().padStart(2, '0') : '--';
-                        dataCells += `<span data-set="${s}" data-line="${l}" data-offset="${b}" class="bg-white dark:bg-slate-800 px-1 py-0.5 rounded border border-slate-300 dark:border-slate-700">${val}</span> `;
+                        // Calcular dirección física del byte
+                        let byteAddr = '?';
+                        if (line.valid && line.tag !== null) {
+                            const baseAddr = (line.tag << (state.bitsIndex + state.bitsOffset)) | (s << state.bitsOffset);
+                            byteAddr = '0x' + (baseAddr + b).toString(16).toUpperCase().padStart(2, '0');
+                        }
+                        dataCells += `<span data-set="${s}" data-line="${l}" data-offset="${b}" title="${byteAddr}" class="bg-white dark:bg-slate-800 px-1 py-0.5 rounded border border-slate-300 dark:border-slate-700 cursor-help">${val}</span> `;
                     }
 
                     html += `
@@ -1294,7 +1300,8 @@
                     const addr = base + i;
                     if (addr < ramSize) {
                         const val = (state.ram[addr] !== undefined) ? state.ram[addr].toString(16).toUpperCase().padStart(2, '0') : '00';
-                        rowBytes += `<span data-addr="${addr}" class="bg-white dark:bg-slate-800 px-1 py-0.5 rounded border border-slate-300 dark:border-slate-700">${val}</span> `;
+                        const addrHex = '0x' + addr.toString(16).toUpperCase().padStart(2, '0');
+                        rowBytes += `<span data-addr="${addr}" title="${addrHex}" class="bg-white dark:bg-slate-800 px-1 py-0.5 rounded border border-slate-300 dark:border-slate-700 cursor-help">${val}</span> `;
                     }
                 }
                 const addrHex = '0x' + base.toString(16).toUpperCase().padStart(2, '0');
@@ -1562,10 +1569,6 @@
                 }
             }
             initCache();
-            state.hits = 0;
-            state.misses = 0;
-            state.compulsoryMisses = 0;
-            state.conflictMisses = 0;
             renderCache();
             updateStatsDisplay(null, null, null);
             document.getElementById('simulationConsole').innerText = 'Cache flushed.';
