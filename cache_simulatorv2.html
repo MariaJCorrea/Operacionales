@@ -196,13 +196,13 @@
                     
                     <div class="space-y-3 text-xs">
                         <div class="flex items-center space-x-2">
-                            <button onclick="handleRead()" class="bg-slate-200 dark:bg-slate-800 border border-slate-400 px-3 py-1 rounded text-xs font-medium hover:bg-slate-300 transition">Read</button>
+                            <button id="readBtn" onclick="handleRead()" class="bg-slate-200 dark:bg-slate-800 border border-slate-400 px-3 py-1 rounded text-xs font-medium hover:bg-slate-300 transition">Read</button>
                             <span class="font-medium">Addr: 0x</span>
                             <input type="text" id="readAddr" value="" placeholder="00" maxlength="4" class="w-16 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded px-1.5 py-1 font-mono text-center">
                         </div>
 
                         <div class="flex items-center space-x-2 flex-wrap gap-y-2">
-                            <button onclick="handleWrite()" class="bg-slate-200 dark:bg-slate-800 border border-slate-400 px-3 py-1 rounded text-xs font-medium hover:bg-slate-300 transition">Write</button>
+                            <button id="writeBtn" onclick="handleWrite()" class="bg-slate-200 dark:bg-slate-800 border border-slate-400 px-3 py-1 rounded text-xs font-medium hover:bg-slate-300 transition">Write</button>
                             <span class="font-medium">Addr: 0x</span>
                             <input type="text" id="writeAddr" value="" placeholder="00" maxlength="4" class="w-14 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded px-1.5 py-1 font-mono text-center">
                             <span class="font-medium">, Byte: 0x</span>
@@ -210,7 +210,7 @@
                         </div>
 
                         <div>
-                            <button onclick="handleFlush()" class="bg-slate-200 dark:bg-slate-800 border border-slate-400 px-3 py-1 rounded text-xs font-medium hover:bg-slate-300 transition">Flush</button>
+                            <button id="flushBtn" onclick="handleFlush()" class="bg-slate-200 dark:bg-slate-800 border border-slate-400 px-3 py-1 rounded text-xs font-medium hover:bg-slate-300 transition">Flush</button>
                             <label class="flex items-center space-x-1.5 text-xs cursor-pointer ml-2">
                                 <input type="checkbox" id="explainOpCheck" class="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500">
                                 <span class="font-medium">Explain</span>
@@ -387,6 +387,15 @@
 
         function toggleDarkMode() {
             document.documentElement.classList.toggle('dark');
+            const isDark = document.documentElement.classList.contains('dark');
+            localStorage.setItem('darkMode', isDark ? 'true' : 'false');
+        }
+
+        function loadDarkModePreference() {
+            const saved = localStorage.getItem('darkMode');
+            if (saved === 'true') {
+                document.documentElement.classList.add('dark');
+            }
         }
 
         function openGuide() {
@@ -695,8 +704,37 @@
             state.explainTargetLine = null;
             state.explainMissType = null;
 
-            lockAccessInputs(true);
-            document.getElementById('nextExplainBtn').style.display = 'inline-block';
+            // Configurar botones para el modo Explain
+            const readBtn = document.getElementById('readBtn');
+            const writeBtn = document.getElementById('writeBtn');
+            const flushBtn = document.getElementById('flushBtn');
+            const nextExplainBtn = document.getElementById('nextExplainBtn');
+            
+            // Deshabilitar inputs de dirección
+            document.getElementById('readAddr').disabled = true;
+            document.getElementById('writeAddr').disabled = true;
+            document.getElementById('writeByte').disabled = true;
+            
+            if (opType === 'read') {
+                // El botón Read se convierte en Next
+                readBtn.innerText = 'Next';
+                readBtn.onclick = function() { nextExplainStep(); };
+                // Cambiar color a verde esmeralda
+                readBtn.className = 'bg-emerald-200 dark:bg-emerald-900 border border-emerald-400 px-3 py-1 rounded text-xs font-medium hover:bg-emerald-300 dark:hover:bg-emerald-800 transition';
+                // Bloquear Write y Flush pero mantenerlos visibles
+                writeBtn.disabled = true;
+                flushBtn.disabled = true;
+            } else {
+                // El botón Write se convierte en Next
+                writeBtn.innerText = 'Next';
+                writeBtn.onclick = function() { nextExplainStep(); };
+                // Cambiar color a verde esmeralda
+                writeBtn.className = 'bg-emerald-200 dark:bg-emerald-900 border border-emerald-400 px-3 py-1 rounded text-xs font-medium hover:bg-emerald-300 dark:hover:bg-emerald-800 transition';
+                // Bloquear Read y Flush pero mantenerlos visibles
+                readBtn.disabled = true;
+                flushBtn.disabled = true;
+            }
+            nextExplainBtn.style.display = 'none';
 
             renderExplainStep();
         }
@@ -730,9 +768,28 @@
             state.explainTargetLine = null;
             state.explainMissType = null;
 
+            // Restaurar botones a su estado original
+            const readBtn = document.getElementById('readBtn');
+            const writeBtn = document.getElementById('writeBtn');
+            const flushBtn = document.getElementById('flushBtn');
+            const nextExplainBtn = document.getElementById('nextExplainBtn');
+            
+            readBtn.disabled = false;
+            writeBtn.disabled = false;
+            flushBtn.disabled = false;
+            nextExplainBtn.style.display = 'none';
+            
+            // Restaurar clases CSS originales
+            readBtn.className = 'bg-slate-200 dark:bg-slate-800 border border-slate-400 px-3 py-1 rounded text-xs font-medium hover:bg-slate-300 transition';
+            writeBtn.className = 'bg-slate-200 dark:bg-slate-800 border border-slate-400 px-3 py-1 rounded text-xs font-medium hover:bg-slate-300 transition';
+            
+            readBtn.innerText = 'Read';
+            writeBtn.innerText = 'Write';
+            readBtn.onclick = function() { handleRead(); };
+            writeBtn.onclick = function() { handleWrite(); };
+
             lockAccessInputs(false);
             clearHighlights();
-            document.getElementById('nextExplainBtn').style.display = 'none';
 
             renderCache();
             updateStatsDisplay(null, null, null);
@@ -1648,14 +1705,38 @@
 
         function renderHistoryView() {
             // Construir el textarea desde historyBaseText, con un único ">" móvil
+            // Cada línea de comando empieza con un espacio (para alineación vertical).
+            // El ">" aparece al inicio de la línea donde está el punto actual,
+            // reemplazando el espacio.
+            // historyViewPos puede ir de -1 a historyBaseText.length (inclusive).
+            // - historyViewPos = -1: ">" en la primera línea de comando (estado inicial)
+            // - historyViewPos = i (0 <= i < length): ">" en la línea i
+            // - historyViewPos = length: ">" al final como línea separada
             let lines = [];
+            
             for (let i = 0; i < state.historyBaseText.length; i++) {
                 const cmd = state.historyBaseText[i];
                 const result = (i < state.historyViewPos) ? state.historyResults[i] : '?';
-                lines.push(`${cmd} = ${result}`);
+                let line = `  ${cmd} = ${result}`;
+                
+                // Si esta línea es donde está el punto actual, reemplazar el primer espacio por ">"
+                // historyViewPos = -1 se comporta como historyViewPos = 0 (primera línea)
+                if (state.historyViewPos === i || (state.historyViewPos === -1 && i === 0)) {
+                    line = `> ${cmd} = ${result}`;
+                }
+                lines.push(line);
             }
-            // Añadir una sola línea con ">" al final
-            lines.push('>');
+            
+            // Insertar ">" al final si historyViewPos >= historyBaseText.length
+            if (state.historyViewPos >= state.historyBaseText.length && state.historyBaseText.length > 0) {
+                lines.push('>');
+            }
+            
+            // Si no hay comandos, mostrar solo ">"
+            if (state.historyBaseText.length === 0) {
+                lines.push('>');
+            }
+            
             document.getElementById('historyText').value = lines.join('\n');
         }
 
@@ -1707,32 +1788,35 @@
             }
 
             // Tras reproducir toda la traza, dejar historyViewPos en la posición que corresponda
-            // para que el último comando (punto donde se queda) muestre '?'.
-            // saveHistorySnapshot ya estableció historyViewPos = historyBaseText.length,
-            // pero queremos que el último comando sea '?', así que lo restamos en 1.
-            if (state.historyBaseText.length > 0) {
-                state.historyViewPos = state.historyBaseText.length - 1;
-            } else {
-                state.historyViewPos = -1;
-            }
+            // para que el ">" quede al final, esperando una nueva instrucción.
+            // saveHistorySnapshot ya estableció historyViewPos = historyBaseText.length.
+            // Pero en loadHistory, los comandos se ejecutan uno a uno, así que al final
+            // historyViewPos será historyBaseText.length (último comando ejecutado).
+            // Esto significa que el ">" quedará justo después del último comando,
+            // y todos los comandos anteriores tendrán su resultado real (H/M).
             renderHistoryView();
         }
 
         function navPrev() {
             if (state.historyBaseText.length === 0) return;
-            if (state.historyViewPos <= 0) return; // No hay hacia atrás
+            if (state.historyViewPos <= -1) return; // No hay hacia atrás
             state.historyViewPos--;
-            // Restaurar snapshot en la posición correspondiente.
-            // historySnapshots[i] contiene el estado DESPUÉS del comando i.
-            // Para mostrar el estado DESPUÉS del comando historyViewPos, usamos snapshot[historyViewPos].
-            // Pero al navegar hacia atrás, historyViewPos apunta al comando que vamos a mostrar como '?'.
-            // El estado del sistema debe ser el del snapshot[historyViewPos] (después de ese comando)
-            // para que al pulsar Next, mostremos el comando siguiente.
-            // Sin embargo, si historyViewPos es el índice del comando que se muestra como '?',
-            // el estado del sistema debe ser el del snapshot[historyViewPos] (después de ejecutar ese comando).
-            // Esto es correcto: al navegar hacia atrás, queremos ver el estado después del comando historyViewPos,
-            // y el comando historyViewPos+1 se mostrará como '?'.
-            if (state.historySnapshots[state.historyViewPos]) {
+            // Restaurar snapshot en la posición correspondiente (snapshot[historyViewPos])
+            // para que el estado del sistema refleje el estado después del comando historyViewPos.
+            // Si historyViewPos == -1, restaurar el estado inicial (sistema recién reseteado)
+            if (state.historyViewPos === -1) {
+                // Estado inicial: caché vacía, contadores a 0
+                initCache();
+                state.hits = 0;
+                state.misses = 0;
+                state.compulsoryMisses = 0;
+                state.conflictMisses = 0;
+                state.memoryReads = 0;
+                state.memoryWrites = 0;
+                renderCache();
+                renderPhysicalMemory();
+                updateStatsDisplay(null, null, null);
+            } else if (state.historySnapshots[state.historyViewPos]) {
                 restoreCacheSnapshot(state.historySnapshots[state.historyViewPos].cache);
                 restoreCounters(state.historySnapshots[state.historyViewPos].counters);
                 renderCache();
@@ -1744,19 +1828,24 @@
 
         function navNext() {
             if (state.historyBaseText.length === 0) return;
-            // El límite derecho es historyBaseText.length - 1 (último comando como '?')
-            if (state.historyViewPos >= state.historyBaseText.length - 1) return;
+            // El límite derecho es historyBaseText.length (posición del ">" al final, esperando nueva instrucción)
+            if (state.historyViewPos >= state.historyBaseText.length) return;
             state.historyViewPos++;
-            // Restaurar snapshot en la posición correspondiente (snapshot[historyViewPos])
-            if (state.historySnapshots[state.historyViewPos]) {
+            // Si historyViewPos < historyBaseText.length, restaurar snapshot
+            if (state.historyViewPos < state.historyBaseText.length && state.historySnapshots[state.historyViewPos]) {
                 restoreCacheSnapshot(state.historySnapshots[state.historyViewPos].cache);
                 restoreCounters(state.historySnapshots[state.historyViewPos].counters);
                 renderCache();
                 renderPhysicalMemory();
                 updateStatsDisplay(null, null, null);
             }
+            // Si historyViewPos == historyBaseText.length, el sistema está en el estado actual (último snapshot)
+            // No hay snapshot para restaurar, pero el sistema ya está en ese estado.
             renderHistoryView();
         }
+
+        // Cargar preferencia de tema al iniciar
+        loadDarkModePreference();
 
     </script>
 </body>
